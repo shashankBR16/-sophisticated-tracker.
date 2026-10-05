@@ -117,12 +117,12 @@ app.post('/api/auth/login', async (req, res) => {
 // --- NEW: TEST EMAIL ROUTE ---
 app.post('/api/test-email', authenticateToken, async (req, res) => {
   try {
-    await transporter.sendMail({
-      from: `"Sophisticated Tracker" <${process.env.EMAIL_USER}>`,
-      to: req.user.email,
-      subject: 'Test Connection Successful 🟢',
-      html: '<h2 style="color: #34d399;">Your email connection is working perfectly!</h2>'
-    });
+    await sendEmail(
+  req.user.email, 
+  "Test Connection Successful 🟢", 
+  "Your email connection is working perfectly!"
+);
+
     res.json({ success: true });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
