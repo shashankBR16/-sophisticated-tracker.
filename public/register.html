@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Register - Sophisticated Tracker</title>
+  <link rel="stylesheet" href="style.css">
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;700;900&display=swap" rel="stylesheet">
+  <style>
+    body {
+      margin: 0; min-height: 100vh; display: flex; align-items: center; justify-content: center;
+      background-color: #0f172a;
+      background-image: radial-gradient(at 10% 20%, rgba(56, 189, 248, 0.15) 0px, transparent 50%), radial-gradient(at 90% 80%, rgba(244, 114, 182, 0.15) 0px, transparent 50%), radial-gradient(at 50% 50%, rgba(129, 140, 248, 0.1) 0px, transparent 50%);
+      background-attachment: fixed; background-size: cover; font-family: 'Outfit', sans-serif;
+    }
+    .login-wrapper { display: flex; flex-direction: column; align-items: center; width: 100%; max-width: 420px; padding: 2rem; z-index: 10; }
+    .brand-title {
+      font-size: 3.8rem; font-weight: 900; text-align: center; margin-bottom: 0.5rem;
+      background: linear-gradient(135deg, #38bdf8 0%, #818cf8 50%, #f472b6 100%);
+      -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; color: transparent; line-height: 1.1;
+    }
+    .brand-subtitle { color: #94a3b8; font-size: 1.1rem; margin-bottom: 2.5rem; text-align: center; }
+    .auth-card {
+      width: 100%; background: rgba(30, 41, 59, 0.6) !important; backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px);
+      border: 1px solid rgba(255, 255, 255, 0.08) !important; box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5); padding: 2.5rem !important; border-radius: 20px !important;
+    }
+    .auth-card input { font-family: 'Outfit', sans-serif; font-size: 1rem; padding: 0.9rem 1rem; border-radius: 10px; background: rgba(15, 23, 42, 0.8) !important; border: 1px solid #334155 !important; color: #f8fafc !important; }
+    .auth-card input:focus { border-color: #38bdf8 !important; outline: none; }
+    .auth-card button { font-family: 'Outfit', sans-serif; font-size: 1.1rem; font-weight: 700; padding: 0.9rem; border-radius: 10px; margin-top: 0.5rem; transition: transform 0.2s, box-shadow 0.2s; cursor: pointer; }
+    .auth-card button:hover { transform: translateY(-2px); box-shadow: 0 10px 15px -3px rgba(56, 189, 248, 0.3); }
+    .password-hint { font-size: 0.75rem; color: #94a3b8; margin-top: -0.8rem; margin-bottom: 0.5rem; }
+  </style>
+</head>
+<body>
+  <div class="login-wrapper">
+    <h1 class="brand-title">Sophisticated Tracker</h1>
+    <p class="brand-subtitle">Monitor your habits with precision.</p>
+    
+    <div class="card auth-card">
+      <h2 id="regTitle" style="color: #fff; margin-bottom: 1.5rem; text-align: center; font-size: 1.8rem; font-weight: 700;">Create Account</h2>
+      <p id="regError" style="color: #ef4444; margin-bottom: 1rem; font-size: 0.9rem; text-align: center;"></p>
+      
+      <!-- Step 1: Initial Registration Form -->
+      <form id="registerForm" style="display: flex; flex-direction: column; gap: 1.2rem;">
+        <input type="text" id="regUsername" placeholder="Create Username" required />
+        <!-- Strictly Email for checking real/fake -->
+        <input type="email" id="regEmail" placeholder="Real Email Address" required />
+        <input type="password" id="regPassword" placeholder="Create Password" pattern="(?=.*\d)(?=.*[a-zA-Z])(?=.*[\W_]).{8,}" title="Must contain at least one number, one letter, one special character, and be at least 8 characters long." required />
+        <span class="password-hint">Requires 8+ chars, numbers, letters, and special characters.</span>
+        <button type="submit" style="background: #38bdf8; color: #0f172a; border: none;">Register</button>
+      </form>
+
+      <!-- Step 2: PIN Verification Form (Hidden until Step 1 succeeds) -->
+      <form id="verifyForm" style="display: none; flex-direction: column; gap: 1.2rem;">
+        <p style="color: #34d399; font-size: 0.9rem; text-align: center; margin-top:-10px;">Check your email for the 6-digit PIN to verify your account.</p>
+        <input type="text" id="pinInput" placeholder="Enter 6-Digit PIN" required />
+        <button type="submit" style="background: #34d399; color: #0f172a; border: none;">Verify & Activate</button>
+      </form>
+      
+      <p id="footerLink" style="margin-top: 1.5rem; font-size: 0.95rem; color: #94a3b8; text-align: center;">
+        Already have an account? 
+        <a href="index.html" style="color: #38bdf8; text-decoration: none; font-weight: 700;">Sign In</a>
+      </p>
+    </div>
+  </div>
+  <script src="auth.js"></script>
+</body>
+</html>

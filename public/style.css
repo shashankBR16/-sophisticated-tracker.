@@ -1,0 +1,145 @@
+* { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Inter', sans-serif; }
+body { background: #0f172a; color: #f8fafc; min-height: 100vh; display: flex; justify-content: center; align-items: flex-start; padding: 2rem 1rem; }
+.card { width: 100%; max-width: 650px; background: #1e293b; border-radius: 16px; padding: 2rem; border: 1px solid #334155; }
+.auth-card { max-width: 400px; margin: auto; }
+input, button { padding: 0.75rem 1rem; border-radius: 8px; border: 1px solid #334155; outline: none; font-size: 0.95rem; }
+input { background: #0f172a; color: #fff; width: 100%; margin-bottom: 1rem; }
+button { background: #38bdf8; color: #0f172a; font-weight: 600; cursor: pointer; border: none; }
+button:hover { background: #7dd3fc; }
+.nav { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem; }
+.nav a { color: #38bdf8; text-decoration: none; font-size: 0.9rem; margin-left: 1rem; }
+.habit-item { display: flex; justify-content: space-between; align-items: center; background: #0f172a; padding: 0.85rem 1rem; border-radius: 10px; margin-bottom: 0.5rem; border: 1px solid #334155; }
+.habit-item.done span { text-decoration: line-through; color: #64748b; }
+.chart-box { margin-top: 2rem; background: #0f172a; padding: 1rem; border-radius: 12px; border: 1px solid #334155; }
+table { width: 100%; border-collapse: collapse; margin-top: 1rem; }
+th, td { padding: 0.75rem; text-align: left; border-bottom: 1px solid #334155; font-size: 0.9rem; }
+th { color: #38bdf8; }
+/* --- Fix for Checkboxes --- */
+input[type="checkbox"] {
+  width: 22px !important;
+  height: 22px !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  cursor: pointer;
+  accent-color: #38bdf8; /* Makes the checkmark blue */
+  flex-shrink: 0;
+}
+/* --- Dual Dashboard Grid --- */
+.dashboard-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 2rem;
+  margin-top: 1.5rem;
+}
+
+.dashboard-column {
+  background: #1e293b;
+  padding: 1.5rem;
+  border-radius: 12px;
+  border: 1px solid #334155;
+}
+
+.column-header {
+  color: #38bdf8;
+  font-size: 1.1rem;
+  font-weight: 600;
+  margin-bottom: 1rem;
+  border-bottom: 1px solid #334155;
+  padding-bottom: 0.5rem;
+}
+
+/* Make it responsive for phones */
+@media (max-width: 768px) {
+  .dashboard-grid {
+    grid-template-columns: 1fr;
+  }
+}
+/* --- Custom Sleek Scrollbar --- */
+.custom-scroll::-webkit-scrollbar {
+  width: 6px;
+}
+.custom-scroll::-webkit-scrollbar-track {
+  background: #0f172a;
+  border-radius: 8px;
+}
+.custom-scroll::-webkit-scrollbar-thumb {
+  background: #334155;
+  border-radius: 8px;
+}
+.custom-scroll::-webkit-scrollbar-thumb:hover {
+  background: #475569;
+}
+/* --- MASTER MOBILE RESPONSIVENESS FIXES (FINAL UI POLISH) --- */
+@media (max-width: 768px) {
+  /* 1. Fix Auth Pages */
+  .brand-title { font-size: 2.2rem !important; }
+  .auth-card { padding: 1.5rem !important; width: 95% !important; box-sizing: border-box !important; }
+
+  /* 2. Reclaim Screen Space & Stack Columns */
+  .dashboard-column { padding: 1.2rem !important; }
+  .dashboard-grid { display: flex !important; flex-direction: column !important; gap: 1.2rem !important; }
+
+  /* 3. Fix Top Navigation */
+  .nav { flex-direction: column !important; align-items: flex-start !important; gap: 1rem !important; text-align: left !important; }
+  .nav > div { flex-wrap: wrap !important; gap: 10px !important; }
+
+  /* 4. Fix Habit Add Form */
+  #habitForm > div { flex-direction: column !important; width: 100% !important; }
+  .custom-input { width: 100% !important; box-sizing: border-box !important; }
+
+  /* 5. Fix Checklist & Health Metrics Layout (Horizontal Text Fix) */
+  .habit-item {
+    flex-direction: row !important;
+    align-items: flex-start !important; /* Aligns to top so X button stays neat */
+    padding: 12px 10px !important;
+    gap: 10px !important;
+  }
+  
+  /* MAGIC FIX: Allows the input and text to wrap naturally so text stays horizontal */
+  .habit-item > div:first-child { 
+    flex: 1 !important; 
+    flex-wrap: wrap !important; 
+    gap: 8px !important;
+  }
+
+  /* Force text to stay horizontal and readable */
+  .habit-item span {
+    white-space: normal !important;
+    word-break: normal !important; /* Prevents the weird vertical letter stacking */
+    font-size: 0.95rem !important;
+    line-height: 1.4 !important;
+  }
+
+  /* Neat input sizing */
+  .habit-item input[type="number"] {
+    width: 65px !important; 
+    padding: 0.4rem !important;
+    font-size: 0.95rem !important;
+  }
+
+  .habit-item > div:last-child { align-self: flex-start !important; margin-top: 5px !important; }
+
+  /* 6. Fix Admin Table */
+  table { display: block !important; overflow-x: auto !important; white-space: nowrap !important; width: 100% !important; }
+
+  /* 7. Fix Modals & X Button */
+  #reminderModal > div, #reportModal > div {
+    width: 95% !important;
+    padding: 2.5rem 1rem 1.5rem 1rem !important;
+    box-sizing: border-box !important;
+  }
+  
+  #reminderModal > div > button:first-child, 
+  #reportModal > div > button:first-child {
+    top: 10px !important;
+    right: 10px !important;
+    z-index: 50 !important;
+    background: rgba(15, 23, 42, 0.9) !important;
+    border-radius: 50% !important;
+    width: 32px !important;
+    height: 32px !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+  }
+}
