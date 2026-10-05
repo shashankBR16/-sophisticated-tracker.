@@ -5,7 +5,6 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const path = require('path');
 const cors = require('cors');
-const nodemailer = require('nodemailer');
 
 const app = express();
 app.use(express.json());
@@ -21,10 +20,33 @@ const pool = mysql.createPool({
   connectionLimit: 10,
 });
 
-const transporter = nodemailer.createTransport({
-  service: 'gmail',
-  auth: { user: process.env.EMAIL_USER, pass: process.env.EMAIL_PASS }
-});
+const sendEmail = async (toEmail, subject, textContent) => {
+  try {
+    const response = await fetch('https://api.brevo.com/v3/smtp/email', {
+      method: 'POST',
+      headers: {
+        'accept': 'application/json',
+        'api-key': process.env.BREVO_API_KEY,
+        'content-type': 'application/json'
+      },
+      body: JSON.stringify({
+        sender: { email: process.env.EMAIL_USER, name: 'Sophisticated Tracker' },
+        to: [{ email: toEmail }],
+        subject: subject,
+        textContent: textContent
+      })
+    });
+    
+    if (response.ok) {
+      console.log('Email successfully sent through Brevo API!');
+    } else {
+      console.error('Email failed to send:', await response.text());
+    }
+  } catch (error) {
+    console.error('Email API Error:', error);
+  }
+};
+
 
 function authenticateToken(req, res, next) {
   const authHeader = req.headers['authorization'];
@@ -44,12 +66,8 @@ app.post('/api/auth/register', async (req, res) => {
     const pin = Math.floor(100000 + Math.random() * 900000).toString();
     await pool.execute('INSERT INTO users (username, email, password, role, verification_pin, is_verified) VALUES (?, ?, ?, "user", ?, FALSE)', [req.body.username, req.body.email, hashedPassword, pin]);
     console.log(`\n🔑 PIN FOR ${req.body.email} IS: ${pin}\n`);
-    await transporter.sendMail({
-      from: `"Sophisticated Tracker" <${process.env.EMAIL_USER}>`,
-      to: req.body.email,
-      subject: 'Your Verification PIN',
-      html: `<div style="padding: 20px; text-align: center; background-color: #0f172a; color: #f8fafc;"><h2 style="color: #38bdf8;">Welcome!</h2><h1 style="color: #34d399; letter-spacing: 5px;">${pin}</h1></div>`
-    });
+    await sendEmail(req.body.email, "Welcome to Sophisticated Tracker", "Your account has been successfully created!"); 
+
     res.status(201).json({ message: 'User registered.' });
   } catch (err) {
     if (err.code === 'ER_DUP_ENTRY') res.status(400).json({ error: 'Username or Email already exists.' });
