@@ -67,8 +67,11 @@ app.post('/api/auth/register', async (req, res) => {
   try {
     const hashedPassword = await bcrypt.hash(req.body.password, 10);
     const pin = Math.floor(100000 + Math.random() * 900000).toString();
-    await pool.execute('INSERT INTO users (username, email, password, role, verification_pin, is_verified) VALUES (?, ?, ?, "user", ?, FALSE)', [req.body.username, req.body.email, hashedPassword, pin]);
-    console.log(`\n🔑 PIN FOR ${req.body.email} IS: ${pin}\n`);
+    await pool.execute(
+  'INSERT INTO users (username, email, password, role, verification_pin, is_verified) VALUES (?, ?, ?, ?, ?, ?)',
+  [req.body.username, req.body.email, hashedPassword, 'user', pin, false]
+);
+
     await sendEmail(req.body.email, "Welcome to Sophisticated Tracker", "Your account has been successfully created!"); 
 
     res.status(201).json({ message: 'User registered.' });
