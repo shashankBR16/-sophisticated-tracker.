@@ -110,7 +110,19 @@ app.post('/api/auth/verify', async (req, res) => {
 // 3. Login
 app.post('/api/auth/login', async (req, res) => {
   try {
-    const [rows] = await pool.execute('SELECT * FROM users WHERE username = ?', [req.body.username]);
+    // This safely grabs the input whether your frontend calls it 'username' or 'email'
+    const loginID = req.body.username || req.body.email; 
+    
+    if (!loginID) {
+      return res.status(400).json({ error: 'Please enter your username or email.' });
+    }
+
+    // Checks both columns in the database
+    const [rows] = await pool.execute(
+      'SELECT * FROM users WHERE username = ? OR email = ?', 
+      [loginID, loginID]
+    );
+    
     if (rows.length === 0) return res.status(400).json({ error: 'User not found.' });
 
     const user = rows[0];
@@ -123,63 +135,4 @@ app.post('/api/auth/login', async (req, res) => {
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
-});
-
-// --- REMINDERS & EMAIL ROUTES ---
-
-// Test Email Connection
-app.post('/api/test-email', authenticateToken, async (req, res) => {
-  try {
-    await sendEmail(
-      req.user.email, 
-      "Test Connection Successful 🟢", 
-      "Your email connection is working perfectly!"
-    );
-    res.json({ success: true });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
-
-// Save New Reminder
-app.post('/api/reminders', authenticateToken, async (req, res) => {
-  const { item_type, item_id, start_time } = req.body;
-  try {
-    await pool.execute(
-      'INSERT INTO reminders (user_id, item_type, item_id, start_time) VALUES (?, ?, ?, ?)',
-      [req.user.id, item_type, item_id, start_time]
-    );
-    res.status(201).json({ message: 'Reminder set successfully!' });
-  } catch (err) {
-    console.error('Reminder Save Error:', err);
-    res.status(500).json({ error: err.message });
-  }
-});
-
-// --- DATA FETCHING ROUTES FOR DROPDOWNS ---
-app.get('/api/habits', authenticateToken, async (req, res) => {
-  try {
-    const [rows] = await pool.execute('SELECT id, name FROM habits WHERE user_id = ?', [req.user.id]);
-    res.json(rows);
-  } catch (err) { res.status(500).json({ error: err.message }); }
-});
-
-app.get('/api/tasks', authenticateToken, async (req, res) => {
-  try {
-    const [rows] = await pool.execute('SELECT id, name FROM tasks WHERE user_id = ?', [req.user.id]);
-    res.json(rows);
-  } catch (err) { res.status(500).json({ error: err.message }); }
-});
-
-app.get('/api/health_metrics', authenticateToken, async (req, res) => {
-  try {
-    const [rows] = await pool.execute('SELECT id, name FROM health_metrics WHERE user_id = ?', [req.user.id]);
-    res.json(rows);
-  } catch (err) { res.status(500).json({ error: err.message }); }
-});
-
-// --- START SERVER ---
-const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
 });
