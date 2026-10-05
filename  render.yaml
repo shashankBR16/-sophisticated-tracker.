@@ -1,0 +1,11 @@
+services:
+  - type: web
+    name: fullstack-habit-tracker
+    env: node
+    region: ohio
+    plan: free
+    buildCommand: npm install
+    startCommand: node server.js
+    envVars:
+      - key: NODE_VERSION
+        value: 18.16.0
