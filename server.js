@@ -72,7 +72,11 @@ app.post('/api/auth/register', async (req, res) => {
   [req.body.username, req.body.email, hashedPassword, 'user', pin, false]
 );
 
-    await sendEmail(req.body.email, "Welcome to Sophisticated Tracker", "Your account has been successfully created!"); 
+    await sendEmail(
+  req.body.email, 
+  "Welcome to Sophisticated Tracker", 
+  `Your account has been successfully created! Your 6-digit verification PIN is: ${pin}`
+); 
 
     res.status(201).json({ message: 'User registered.' });
     } catch (err) {
