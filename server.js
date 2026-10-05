@@ -69,10 +69,15 @@ app.post('/api/auth/register', async (req, res) => {
     await sendEmail(req.body.email, "Welcome to Sophisticated Tracker", "Your account has been successfully created!"); 
 
     res.status(201).json({ message: 'User registered.' });
-  } catch (err) {
-    if (err.code === 'ER_DUP_ENTRY') res.status(400).json({ error: 'Username or Email already exists.' });
-    else res.status(500).json({ error: 'Failed to send email.' });
+    } catch (err) {
+    console.error("REGISTRATION CRASH REASON:", err);
+    if (err.code === 'ER_DUP_ENTRY') {
+      res.status(400).json({ error: 'Username or Email already exists.' });
+    } else {
+      res.status(500).json({ error: err.message });
+    }
   }
+
 });
 
 app.post('/api/auth/verify', async (req, res) => {
