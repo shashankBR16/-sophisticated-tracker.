@@ -5,35 +5,45 @@ document.addEventListener('DOMContentLoaded', () => {
     return;
   }
 
-  // Display User Name correctly
+  // Display User Name
   const userStr = localStorage.getItem('user');
   if (userStr) {
     try {
       const user = JSON.parse(userStr);
-      const greetingEl = document.getElementById('userGreeting') || document.querySelector('h1, h2, span, div');
-      if (user.username) {
-        // Look specifically for greeting elements or update text containing "Hi"
-        const greetingContainer = document.getElementById('userGreeting');
-        if (greetingContainer) {
-          greetingContainer.innerText = `Hi, ${user.username}`;
-        }
+      const greetingContainer = document.getElementById('userGreeting') || document.querySelector('h1, h2, span');
+      if (greetingContainer && user.username) {
+        greetingContainer.innerText = `Hi, ${user.username}`;
       }
     } catch (e) {
       console.error('Error parsing user data', e);
     }
   }
 
-  // Preset Selectors binding with pipe-splitting
-  const dailyTaskPreset = document.getElementById('dailyTaskPreset') || document.querySelector('select'); 
+  // Preset Selectors (Daily Tasks & Health Metrics)
+  const taskPreset = document.getElementById('dailyTaskPreset') || document.querySelectorAll('select')[0];
+  const healthPreset = document.getElementById('healthMetricPreset') || document.querySelectorAll('select')[1];
   const habitNameInput = document.getElementById('habitName') || document.querySelector('input[type="text"]');
 
-  if (dailyTaskPreset && habitNameInput) {
-    dailyTaskPreset.addEventListener('change', (e) => {
-      const selectedValue = e.target.value;
-      if (selectedValue) {
-        // Extract only the name part before the '|' character
-        const cleanName = selectedValue.split('|')[0].trim();
-        habitNameInput.value = cleanName;
+  let selectedCategory = 'Daily';
+
+  if (taskPreset && habitNameInput) {
+    taskPreset.addEventListener('change', (e) => {
+      const val = e.target.value;
+      if (val) {
+        habitNameInput.value = val.split('|')[0].trim();
+        selectedCategory = 'Daily';
+        if (healthPreset) healthPreset.selectedIndex = 0; // Reset other dropdown
+      }
+    });
+  }
+
+  if (healthPreset && habitNameInput) {
+    healthPreset.addEventListener('change', (e) => {
+      const val = e.target.value;
+      if (val) {
+        habitNameInput.value = val.split('|')[0].trim();
+        selectedCategory = 'Health';
+        if (taskPreset) taskPreset.selectedIndex = 0; // Reset other dropdown
       }
     });
   }
@@ -45,7 +55,7 @@ document.addEventListener('DOMContentLoaded', () => {
       e.preventDefault();
       const name = habitNameInput.value.trim();
       if (!name) {
-        alert('Please enter or select a habit name.');
+        alert('Please select or enter a habit name.');
         return;
       }
 
@@ -56,11 +66,13 @@ document.addEventListener('DOMContentLoaded', () => {
             'Content-Type': 'application/json',
             'Authorization': `Bearer ${token}`
           },
-          body: JSON.stringify({ name, category: 'Daily', target: 'Done' })
+          body: JSON.stringify({ name, category: selectedCategory, target: 'Done' })
         });
 
         if (res.ok) {
           habitNameInput.value = '';
+          if (taskPreset) taskPreset.selectedIndex = 0;
+          if (healthPreset) healthPreset.selectedIndex = 0;
           loadHabits();
         } else {
           const data = await res.json();
