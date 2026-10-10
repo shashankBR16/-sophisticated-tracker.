@@ -5,21 +5,35 @@ document.addEventListener('DOMContentLoaded', () => {
     return;
   }
 
-  // Display User Name if element exists
-  const user = JSON.parse(localStorage.getItem('user') || '{}');
-  const greetingEl = document.getElementById('userGreeting');
-  if (greetingEl && user.username) {
-    greetingEl.innerText = `Hi, ${user.username}`;
+  // Display User Name correctly
+  const userStr = localStorage.getItem('user');
+  if (userStr) {
+    try {
+      const user = JSON.parse(userStr);
+      const greetingEl = document.getElementById('userGreeting') || document.querySelector('h1, h2, span, div');
+      if (user.username) {
+        // Look specifically for greeting elements or update text containing "Hi"
+        const greetingContainer = document.getElementById('userGreeting');
+        if (greetingContainer) {
+          greetingContainer.innerText = `Hi, ${user.username}`;
+        }
+      }
+    } catch (e) {
+      console.error('Error parsing user data', e);
+    }
   }
 
-  // Preset Selectors binding to Habit Name input
+  // Preset Selectors binding with pipe-splitting
   const dailyTaskPreset = document.getElementById('dailyTaskPreset') || document.querySelector('select'); 
   const habitNameInput = document.getElementById('habitName') || document.querySelector('input[type="text"]');
 
   if (dailyTaskPreset && habitNameInput) {
     dailyTaskPreset.addEventListener('change', (e) => {
-      if (e.target.value) {
-        habitNameInput.value = e.target.value;
+      const selectedValue = e.target.value;
+      if (selectedValue) {
+        // Extract only the name part before the '|' character
+        const cleanName = selectedValue.split('|')[0].trim();
+        habitNameInput.value = cleanName;
       }
     });
   }
@@ -29,8 +43,11 @@ document.addEventListener('DOMContentLoaded', () => {
   if (addForm) {
     addForm.addEventListener('submit', async (e) => {
       e.preventDefault();
-      const name = habitNameInput.value;
-      if (!name) return alert('Please enter or select a habit name.');
+      const name = habitNameInput.value.trim();
+      if (!name) {
+        alert('Please enter or select a habit name.');
+        return;
+      }
 
       try {
         const res = await fetch('/api/habits', {
@@ -68,7 +85,7 @@ async function loadHabits() {
       const habits = await res.json();
       const container = document.getElementById('habitsContainer');
       if (container) {
-        container.innerHTML = habits.map(h => `<div class="habit-item"><span>${h.name}</span></div>`).join('');
+        container.innerHTML = habits.map(h => `<div class="habit-item"><span>${h.name || h.habit_name}</span></div>`).join('');
       }
     }
   } catch (err) {
