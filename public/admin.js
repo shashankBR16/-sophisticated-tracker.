@@ -1,3 +1,16 @@
+document.addEventListener('DOMContentLoaded', () => {
+  const userStr = localStorage.getItem('user');
+  if (!userStr) {
+    window.location.href = '/index.html'; // Kick out if not logged in
+    return;
+  }
+  
+  const user = JSON.parse(userStr);
+  if (user.username.toLowerCase() !== 'shashank') {
+    alert('Access Denied: You do not have administrator privileges.');
+    window.location.href = '/dashboard.html'; // Kick out if not shashank
+  }
+});
 const token = localStorage.getItem('token');
 const user = JSON.parse(localStorage.getItem('user'));
 if (!token || !user || user.role !== 'admin') window.location.href = '/dashboard.html';

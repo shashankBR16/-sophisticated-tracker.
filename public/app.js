@@ -7,30 +7,36 @@ document.addEventListener('DOMContentLoaded', () => {
   if (userStr) {
     try {
       const user = JSON.parse(userStr);
+      
+      // FIX 1: Restore "Hi, [Name]" Greeting
       const greetingEl = document.getElementById('userNameDisplay');
-      if (greetingEl && user.username) greetingEl.innerText = user.username; 
+      if (greetingEl && user.username) greetingEl.innerText = `Hi, ${user.username}`; 
+      
+      // FIX 2: Restrict Admin Link Visibility to Shashank ONLY
+      const adminLink = document.getElementById('adminLink');
+      if (adminLink) {
+        if (user.username.toLowerCase() === 'shashank') {
+          adminLink.style.display = 'inline-block';
+        } else {
+          adminLink.style.display = 'none';
+        }
+      }
     } catch(e) {}
   }
 
-  // DYNAMIC RECAP GENERATOR
   const generateRecap = (titleText) => {
     const reportModal = document.getElementById('reportModal');
     const reportTitle = document.getElementById('reportModalTitle');
     const reportContent = document.getElementById('reportContent');
-    
     const checkboxes = document.querySelectorAll('.task-checkbox');
     let tasksDone = 0;
     checkboxes.forEach(c => { if(c.checked) tasksDone++; });
-
     const numberInputs = document.querySelectorAll('.metric-input');
     let metricsHtml = '';
     numberInputs.forEach(input => {
       let val = parseFloat(input.value) || 0;
-      if(val > 0) {
-        metricsHtml += `<li style="margin-bottom: 5px; color: #34d399;">${input.dataset.title}: <strong>${val}</strong></li>`;
-      }
+      if(val > 0) metricsHtml += `<li style="margin-bottom: 5px; color: #34d399;">${input.dataset.title}: <strong>${val}</strong></li>`;
     });
-
     reportTitle.innerText = titleText;
     reportContent.innerHTML = `
       <div style="color:#f8fafc; margin-top:10px;">
@@ -45,16 +51,13 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('weeklyReportBtn')?.addEventListener('click', () => generateRecap('Weekly Recap'));
   document.getElementById('monthlyReportBtn')?.addEventListener('click', () => generateRecap('Monthly Recap'));
 
-  // UI PRESETS
   window.toggleNumberInputs = function(show) {
     const unitInput = document.getElementById('habitUnit');
     const targetInput = document.getElementById('habitTarget');
     if (show) {
-      unitInput.style.display = 'inline-block';
-      targetInput.style.display = 'inline-block';
+      unitInput.style.display = 'inline-block'; targetInput.style.display = 'inline-block';
     } else {
-      unitInput.style.display = 'none';
-      targetInput.style.display = 'none';
+      unitInput.style.display = 'none'; targetInput.style.display = 'none';
       unitInput.value = ''; targetInput.value = '';
     }
   };
@@ -81,10 +84,8 @@ document.addEventListener('DOMContentLoaded', () => {
       const type = document.getElementById('habitType').value;
       const unit = document.getElementById('habitUnit').value.trim();
       const target = document.getElementById('habitTarget').value;
-      
       if (!title) return alert('Please enter a habit name.');
       if (window.currentHabits.some(h => h.title.toLowerCase() === title.toLowerCase())) return alert('Habit already exists!');
-      
       const payload = { title, type, unit: type === 'number' ? unit : null, target: type === 'number' ? parseFloat(target) : null };
       try {
         const res = await fetch('/api/habits', {
@@ -115,18 +116,11 @@ window.miniChartsRegistry = {};
 async function loadHabits() {
   const token = localStorage.getItem('token');
   try {
-    // 1. TAKE SNAPSHOT OF CURRENT PROGRESS BEFORE REDRAWING
     const savedTasks = [];
-    document.querySelectorAll('.task-checkbox').forEach(cb => {
-      if (cb.checked) savedTasks.push(cb.id);
-    });
-
+    document.querySelectorAll('.task-checkbox').forEach(cb => { if (cb.checked) savedTasks.push(cb.id); });
     const savedMetrics = {};
-    document.querySelectorAll('.metric-input').forEach(input => {
-      if (input.value) savedMetrics[input.id] = input.value;
-    });
+    document.querySelectorAll('.metric-input').forEach(input => { if (input.value) savedMetrics[input.id] = input.value; });
 
-    // 2. FETCH NEW DATA
     const res = await fetch('/api/habits', { headers: { 'Authorization': `Bearer ${token}` } });
     if (!res.ok) return;
     const habits = await res.json();
@@ -134,11 +128,9 @@ async function loadHabits() {
 
     const tasks = habits.filter(h => h.type === 'boolean');
     const metrics = habits.filter(h => h.type === 'number');
-
     const booleanList = document.getElementById('booleanHabitList');
     const numberList = document.getElementById('numberHabitList');
 
-    // 3. DRAW NEW HTML
     if (booleanList) {
       booleanList.innerHTML = tasks.length ? tasks.map(h => `
         <div style="display: flex; justify-content: space-between; align-items: center; padding: 12px; margin-bottom: 8px; background: rgba(15, 23, 42, 0.6); border: 1px solid #334155; border-radius: 8px;">
@@ -164,53 +156,27 @@ async function loadHabits() {
       `).join('') : '<div style="color: #94a3b8; text-align: center;">No metrics.</div>';
     }
 
-    // Initialize blank charts based on new lists
     renderCharts(tasks, metrics);
-
-    // 4. RESTORE SNAPSHOT PROGRESS & FORCE CHART UPDATES
-    savedTasks.forEach(id => {
-      const cb = document.getElementById(id);
-      if (cb) cb.checked = true;
-    });
-
+    savedTasks.forEach(id => { const cb = document.getElementById(id); if (cb) cb.checked = true; });
     Object.keys(savedMetrics).forEach(id => {
       const input = document.getElementById(id);
-      if (input) {
-        input.value = savedMetrics[id];
-        input.dispatchEvent(new Event('input')); // Forces the bar chart to update
-      }
+      if (input) { input.value = savedMetrics[id]; input.dispatchEvent(new Event('input')); }
     });
-
-    updateTaskChart(); // Forces the pie chart to update
-
+    updateTaskChart(); 
   } catch (err) {}
 }
 
 window.updateTaskChart = function() {
   const checkboxes = document.querySelectorAll('.task-checkbox');
   const palette = ['#38bdf8', '#34d399', '#facc15', '#a78bfa', '#fb923c', '#fb7185', '#2dd4bf'];
-  
-  let labels = [];
-  let data = [];
-  let bgColors = [];
-  let pendingCount = 0;
+  let labels = [], data = [], bgColors = [], pendingCount = 0;
 
   checkboxes.forEach((c, index) => {
-    if (c.checked) {
-      labels.push(c.dataset.title);
-      data.push(1); 
-      bgColors.push(palette[index % palette.length]);
-    } else {
-      pendingCount++;
-    }
+    if (c.checked) { labels.push(c.dataset.title); data.push(1); bgColors.push(palette[index % palette.length]); } 
+    else { pendingCount++; }
   });
 
-  if (pendingCount > 0) {
-    labels.push('Pending');
-    data.push(pendingCount);
-    bgColors.push('#334155');
-  }
-
+  if (pendingCount > 0) { labels.push('Pending'); data.push(pendingCount); bgColors.push('#334155'); }
   if (labels.length === 0) { labels = ['Pending']; data = [1]; bgColors = ['#334155']; }
 
   if (mainPieChart) {
@@ -223,7 +189,6 @@ window.updateTaskChart = function() {
 
 window.updateMetricChart = function(id, value, target, title) {
   let val = parseFloat(value) || 0;
-  
   const chart = window.miniChartsRegistry[id];
   if (chart) {
     let remaining = target - val;
@@ -231,7 +196,6 @@ window.updateMetricChart = function(id, value, target, title) {
     chart.data.datasets[0].data = [val, remaining];
     chart.update();
   }
-  
   if (growthBarChart) {
     const idx = growthBarChart.data.labels.indexOf(title);
     if (idx !== -1) {
@@ -256,18 +220,14 @@ function renderCharts(tasks, metrics) {
     if (mainPieChart) mainPieChart.destroy(); 
     mainPieChart = new Chart(pieCtx, {
       type: 'doughnut',
-      data: {
-        labels: ['Pending'],
-        datasets: [{ data: [tasks.length || 1], backgroundColor: ['#334155'], borderWidth: 0, cutout: '60%' }]
-      },
+      data: { labels: ['Pending'], datasets: [{ data: [tasks.length || 1], backgroundColor: ['#334155'], borderWidth: 0, cutout: '60%' }] },
       options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } } }
     });
   }
 
   const miniContainer = document.getElementById('healthMiniCharts');
   if (miniContainer) {
-    miniContainer.innerHTML = ''; 
-    window.miniChartsRegistry = {}; 
+    miniContainer.innerHTML = ''; window.miniChartsRegistry = {}; 
     metrics.forEach(m => {
       const wrapper = document.createElement('div');
       wrapper.style = 'width: 80px; text-align: center;';
@@ -291,12 +251,7 @@ function renderCharts(tasks, metrics) {
       type: 'bar',
       data: {
         labels: metrics.map(m => m.title),
-        datasets: [{
-          label: 'Current Progress',
-          data: metrics.map(() => 0),
-          backgroundColor: '#38bdf8',
-          borderRadius: 4
-        }]
+        datasets: [{ label: 'Current Progress', data: metrics.map(() => 0), backgroundColor: '#38bdf8', borderRadius: 4 }]
       },
       options: {
         responsive: true, maintainAspectRatio: false,

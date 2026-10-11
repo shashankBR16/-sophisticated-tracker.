@@ -1,41 +1,30 @@
 document.addEventListener('DOMContentLoaded', async () => {
   const token = localStorage.getItem('token');
   if (!token) return window.location.href = '/index.html';
-
   let allHabits = [];
   
   const selects = document.querySelectorAll('select');
   const categorySelect = selects[0];
   const itemSelect = selects[1];
   const timeInput = document.querySelector('input[type="time"]');
-  
   const allButtons = Array.from(document.querySelectorAll('button, a, div'));
   const saveBtn = allButtons.find(el => el.innerText && el.innerText.includes('Save Reminder'));
   const testEmailBtn = allButtons.find(el => el.innerText && el.innerText.includes('Test Email Connection'));
 
-  // FETCH ALL HABITS
   try {
     const res = await fetch('/api/habits', { headers: { 'Authorization': `Bearer ${token}` } });
     if (res.ok) allHabits = await res.json();
   } catch (err) {}
 
-  // FIXED DROPDOWN FILTER LOGIC
   function updateItemDropdown() {
     if (!categorySelect || !itemSelect) return;
     const category = categorySelect.value.toLowerCase();
     let filtered = allHabits;
-    
-    if (category === 'task') {
-      filtered = allHabits.filter(h => h.type === 'boolean');
-    } else if (category === 'health metric') {
-      filtered = allHabits.filter(h => h.type === 'number');
-    }
+    if (category === 'task') filtered = allHabits.filter(h => h.type === 'boolean');
+    else if (category === 'health metric') filtered = allHabits.filter(h => h.type === 'number');
 
-    if (filtered.length > 0) {
-      itemSelect.innerHTML = filtered.map(h => `<option value="${h.id}">${h.title}</option>`).join('');
-    } else {
-      itemSelect.innerHTML = '<option value="">No items found</option>';
-    }
+    if (filtered.length > 0) itemSelect.innerHTML = filtered.map(h => `<option value="${h.id}">${h.title}</option>`).join('');
+    else itemSelect.innerHTML = '<option value="">No items found</option>';
   }
 
   if (categorySelect) {
@@ -43,7 +32,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     updateItemDropdown(); 
   }
 
-  // SAVE REMINDER
   if (saveBtn) {
     saveBtn.addEventListener('click', async (e) => {
       e.preventDefault();
@@ -60,27 +48,24 @@ document.addEventListener('DOMContentLoaded', async () => {
         });
         if (res.ok) {
           alert('Reminder saved successfully!');
-          loadReminders(); // Refresh the list below!
+          loadReminders(); 
         } 
       } catch (err) {}
     });
   }
 
-  // TEST BREVO EMAIL
   if (testEmailBtn) {
     testEmailBtn.addEventListener('click', async (e) => {
       e.preventDefault();
       try {
-        const res = await fetch('/api/reminders/test-email', {
-          method: 'POST', headers: { 'Authorization': `Bearer ${token}` }
-        });
-        if (res.ok) alert('Test email sent! Check your inbox.');
-        else alert('Failed to send email. Ensure EMAIL_PASS is your Brevo SMTP key.');
-      } catch (err) {}
+        const res = await fetch('/api/reminders/test-email', { method: 'POST', headers: { 'Authorization': `Bearer ${token}` } });
+        const data = await res.json();
+        if (res.ok) alert(data.message);
+        else alert('Error: ' + (data.error || 'Check Render Logs'));
+      } catch (err) { alert('Network error connecting to API.'); }
     });
   }
 
-  // FETCH & DISPLAY SAVED REMINDERS AT BOTTOM
   async function loadReminders() {
     try {
       const res = await fetch('/api/reminders', { headers: { 'Authorization': `Bearer ${token}` } });
@@ -91,10 +76,12 @@ document.addEventListener('DOMContentLoaded', async () => {
       if (!container) {
         container = document.createElement('div');
         container.id = 'remindersDisplayList';
-        container.style.marginTop = '2.5rem';
-        container.style.padding = '0 1rem';
-        const pageBody = document.querySelector('.card') || document.body;
-        pageBody.appendChild(container);
+        container.style.marginTop = '2rem';
+        
+        // MOUNTS SECURELY TO THE BOTTOM OF THE CARD
+        const card = document.querySelector('.card');
+        if (card) card.appendChild(container);
+        else document.body.appendChild(container);
       }
 
       container.innerHTML = `

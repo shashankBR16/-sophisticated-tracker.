@@ -4,7 +4,7 @@ const mysql = require('mysql2/promise');
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
 const cors = require('cors');
-const nodemailer = require('nodemailer');
+const https = require('https'); // Added native https for Brevo API
 const path = require('path');
 
 const app = express();
@@ -39,7 +39,9 @@ app.post('/api/auth/register', async (req, res) => {
   try {
     const { username, email, password } = req.body;
     const hashedPassword = await bcrypt.hash(password, 10);
-    await pool.query('INSERT INTO users (username, email, password, is_verified) VALUES (?, ?, ?, ?)', [username, email, hashedPassword, true]);
+    // Auto-assign 'admin' role if the username is shashank
+    const role = username.toLowerCase() === 'shashank' ? 'admin' : 'user';
+    await pool.query('INSERT INTO users (username, email, password, role, is_verified) VALUES (?, ?, ?, ?, ?)', [username, email, hashedPassword, role, true]);
     res.status(201).json({ message: 'User registered' });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
@@ -51,8 +53,8 @@ app.post('/api/auth/login', async (req, res) => {
     if (rows.length === 0) return res.status(400).json({ error: 'User not found.' });
     const validPassword = await bcrypt.compare(password, rows[0].password);
     if (!validPassword) return res.status(400).json({ error: 'Invalid password.' });
-    const token = jwt.sign({ id: rows[0].id, username: rows[0].username, email: rows[0].email }, process.env.JWT_SECRET || 'fallback_secret', { expiresIn: '24h' });
-    res.json({ token, user: { id: rows[0].id, username: rows[0].username, email: rows[0].email } });
+    const token = jwt.sign({ id: rows[0].id, username: rows[0].username, email: rows[0].email, role: rows[0].role }, process.env.JWT_SECRET || 'fallback_secret', { expiresIn: '24h' });
+    res.json({ token, user: { id: rows[0].id, username: rows[0].username, email: rows[0].email, role: rows[0].role } });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
@@ -97,33 +99,45 @@ app.post('/api/reminders', authenticateToken, async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-// --- TEST EMAIL ROUTE (USING BREVO API KEY INSTEAD OF SMTP) ---
-app.post('/api/reminders/test-email', authenticateToken, async (req, res) => {
-  try {
-    const response = await fetch('https://api.brevo.com/v3/smtp/email', {
-      method: 'POST',
-      headers: {
-        'accept': 'application/json',
-        'api-key': process.env.EMAIL_PASS, // This now uses your saved API Key
-        'content-type': 'application/json'
-      },
-      body: JSON.stringify({
-        sender: { email: process.env.EMAIL_USER }, // Your verified Brevo sender email
-        to: [{ email: req.user.email }],
-        subject: 'Sophisticated Tracker - Test Email',
-        textContent: 'Hello! Your Brevo API email reminder service is configured correctly.'
-      })
-    });
+// CRITICAL FIX: NATIVE BREVO API CALL (No Fetch Required)
+app.post('/api/reminders/test-email', authenticateToken, (req, res) => {
+  const postData = JSON.stringify({
+    sender: { email: process.env.EMAIL_USER },
+    to: [{ email: req.user.email }],
+    subject: 'Sophisticated Tracker - Test Email',
+    textContent: 'Hello! Your Brevo API email reminder service is working perfectly.'
+  });
 
-    if (response.ok) {
-      res.json({ message: 'Test email sent successfully via API!' });
-    } else {
-      const errorData = await response.json();
-      res.status(500).json({ error: 'Brevo API Error: ' + JSON.stringify(errorData) });
+  const options = {
+    hostname: 'api.brevo.com',
+    path: '/v3/smtp/email',
+    method: 'POST',
+    headers: {
+      'accept': 'application/json',
+      'api-key': process.env.EMAIL_PASS,
+      'content-type': 'application/json',
+      'content-length': Buffer.byteLength(postData)
     }
-  } catch (err) {
+  };
+
+  const request = https.request(options, (response) => {
+    let data = '';
+    response.on('data', (chunk) => { data += chunk; });
+    response.on('end', () => {
+      if (response.statusCode >= 200 && response.statusCode < 300) {
+        res.json({ message: 'Test email sent successfully via API!' });
+      } else {
+        res.status(500).json({ error: 'Brevo API Error: ' + data });
+      }
+    });
+  });
+
+  request.on('error', (err) => {
     res.status(500).json({ error: 'Network error: ' + err.message });
-  }
+  });
+
+  request.write(postData);
+  request.end();
 });
 
 const PORT = process.env.PORT || 10000;
