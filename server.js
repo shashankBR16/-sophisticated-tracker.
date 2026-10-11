@@ -130,6 +130,36 @@ app.post('/api/reminders/test-email', authenticateToken, async (req, res) => {
   }
 });
 
+// --- ADMIN ROUTES ---
+app.get('/api/admin/users', authenticateToken, async (req, res) => {
+  // Double-check security on the backend
+  if (req.user.role !== 'admin') return res.status(403).json({ error: 'Forbidden: Admins only' });
+  
+  try {
+    // Fetches all users and counts how many habits they have created
+    const [rows] = await pool.query(`
+      SELECT u.id, u.username, u.email, COUNT(h.id) as habit_count 
+      FROM users u 
+      LEFT JOIN habits h ON u.id = h.user_id 
+      GROUP BY u.id
+    `);
+    res.json(rows);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.delete('/api/admin/users/:id', authenticateToken, async (req, res) => {
+  if (req.user.role !== 'admin') return res.status(403).json({ error: 'Forbidden: Admins only' });
+  try {
+    // Deleting the user will automatically delete their habits due to MySQL ON DELETE CASCADE
+    await pool.query('DELETE FROM users WHERE id = ?', [req.params.id]);
+    res.json({ message: 'User deleted successfully' });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 
 const PORT = process.env.PORT || 10000;
 app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
