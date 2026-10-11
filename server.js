@@ -107,7 +107,6 @@ app.post('/api/reminders', authenticateToken, async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-// CRITICAL FIX: NATIVE HTTPS FOR BREVO API (Bypasses Render 'fetch' errors)
 app.post('/api/reminders/test-email', authenticateToken, (req, res) => {
   const https = require('https');
   const postData = JSON.stringify({
@@ -123,7 +122,7 @@ app.post('/api/reminders/test-email', authenticateToken, (req, res) => {
     method: 'POST',
     headers: {
       'accept': 'application/json',
-      'api-key': process.env.EMAIL_PASS, // Your Brevo API Key
+      'api-key': process.env.EMAIL_PASS,
       'content-type': 'application/json',
       'content-length': Buffer.byteLength(postData)
     }
@@ -136,7 +135,6 @@ app.post('/api/reminders/test-email', authenticateToken, (req, res) => {
       if (response.statusCode >= 200 && response.statusCode < 300) {
         res.json({ message: 'Test email sent successfully via API!' });
       } else {
-        // Sends the exact Brevo error back to your screen
         res.status(400).json({ error: data });
       }
     });
