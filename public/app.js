@@ -12,15 +12,16 @@ document.addEventListener('DOMContentLoaded', () => {
       const greetingEl = document.getElementById('userNameDisplay');
       if (greetingEl && user.username) greetingEl.innerText = `Hi, ${user.username}`; 
       
-      // FIX 2: Restrict Admin Link Visibility to Shashank ONLY
+           // FIX 2: Restrict Admin Link Visibility strictly by Role
       const adminLink = document.getElementById('adminLink');
       if (adminLink) {
-        if (user.username.toLowerCase() === 'shashank') {
+        if (user.role === 'admin') {
           adminLink.style.display = 'inline-block';
         } else {
           adminLink.style.display = 'none';
         }
       }
+
     } catch(e) {}
   }
 

@@ -16,15 +16,23 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (res.ok) allHabits = await res.json();
   } catch (err) {}
 
+  // FIXED: Now checks the visible text of the dropdown instead of the hidden value
   function updateItemDropdown() {
     if (!categorySelect || !itemSelect) return;
-    const category = categorySelect.value.toLowerCase();
+    const categoryText = categorySelect.options[categorySelect.selectedIndex].text.toLowerCase();
+    
     let filtered = allHabits;
-    if (category === 'task') filtered = allHabits.filter(h => h.type === 'boolean');
-    else if (category === 'health metric') filtered = allHabits.filter(h => h.type === 'number');
+    if (categoryText.includes('task')) {
+      filtered = allHabits.filter(h => h.type === 'boolean');
+    } else if (categoryText.includes('health') || categoryText.includes('metric')) {
+      filtered = allHabits.filter(h => h.type === 'number');
+    }
 
-    if (filtered.length > 0) itemSelect.innerHTML = filtered.map(h => `<option value="${h.id}">${h.title}</option>`).join('');
-    else itemSelect.innerHTML = '<option value="">No items found</option>';
+    if (filtered.length > 0) {
+      itemSelect.innerHTML = filtered.map(h => `<option value="${h.id}">${h.title}</option>`).join('');
+    } else {
+      itemSelect.innerHTML = '<option value="">No items found</option>';
+    }
   }
 
   if (categorySelect) {
@@ -35,7 +43,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   if (saveBtn) {
     saveBtn.addEventListener('click', async (e) => {
       e.preventDefault();
-      const item_type = categorySelect.value;
+      const item_type = categorySelect.options[categorySelect.selectedIndex].text;
       const item_id = itemSelect.value;
       const start_time = timeInput ? timeInput.value : '';
 
@@ -60,8 +68,12 @@ document.addEventListener('DOMContentLoaded', async () => {
       try {
         const res = await fetch('/api/reminders/test-email', { method: 'POST', headers: { 'Authorization': `Bearer ${token}` } });
         const data = await res.json();
-        if (res.ok) alert(data.message);
-        else alert('Error: ' + (data.error || 'Check Render Logs'));
+        if (res.ok) {
+          alert('Test email sent successfully! Check your inbox.');
+        } else {
+          // This will now show EXACTLY what Brevo is complaining about
+          alert('BREVO ERROR: ' + (data.error || JSON.stringify(data)));
+        }
       } catch (err) { alert('Network error connecting to API.'); }
     });
   }
@@ -77,8 +89,6 @@ document.addEventListener('DOMContentLoaded', async () => {
         container = document.createElement('div');
         container.id = 'remindersDisplayList';
         container.style.marginTop = '2rem';
-        
-        // MOUNTS SECURELY TO THE BOTTOM OF THE CARD
         const card = document.querySelector('.card');
         if (card) card.appendChild(container);
         else document.body.appendChild(container);
