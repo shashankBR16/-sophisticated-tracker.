@@ -3,28 +3,34 @@ document.addEventListener('DOMContentLoaded', () => {
   if (!token) return window.location.href = '/index.html';
   window.currentHabits = [];
 
+  // Check if Admin is in "Inspect" mode
+  const urlParams = new URLSearchParams(window.location.search);
+  window.inspectUserId = urlParams.get('inspect');
+  const inspectName = urlParams.get('name');
+
   const userStr = localStorage.getItem('user');
   if (userStr) {
     try {
       const user = JSON.parse(userStr);
-      
-      // FIX 1: Restore "Hi, [Name]" Greeting
       const greetingEl = document.getElementById('userNameDisplay');
-      if (greetingEl && user.username) greetingEl.innerText = `Hi, ${user.username}`; 
-      
-           // FIX 2: Restrict Admin Link Visibility strictly by Role
       const adminLink = document.getElementById('adminLink');
-      if (adminLink) {
-        if (user.role === 'admin') {
-          adminLink.style.display = 'inline-block';
-        } else {
-          adminLink.style.display = 'none';
+
+      // Change greeting if inspecting another user
+      if (greetingEl) {
+        if (inspectName) {
+          greetingEl.innerHTML = `<span style="color:#fbbf24">👀 Viewing: ${inspectName}</span>`;
+        } else if (user.username) {
+          greetingEl.innerText = user.username;
         }
       }
 
+      if (adminLink) {
+        adminLink.style.display = user.role === 'admin' ? 'inline-block' : 'none';
+      }
     } catch(e) {}
   }
 
+  // DYNAMIC RECAP GENERATOR
   const generateRecap = (titleText) => {
     const reportModal = document.getElementById('reportModal');
     const reportTitle = document.getElementById('reportModalTitle');
@@ -87,7 +93,10 @@ document.addEventListener('DOMContentLoaded', () => {
       const target = document.getElementById('habitTarget').value;
       if (!title) return alert('Please enter a habit name.');
       if (window.currentHabits.some(h => h.title.toLowerCase() === title.toLowerCase())) return alert('Habit already exists!');
+      
       const payload = { title, type, unit: type === 'number' ? unit : null, target: type === 'number' ? parseFloat(target) : null };
+      if (window.inspectUserId) payload.userId = window.inspectUserId; // Pass the inspected user's ID
+
       try {
         const res = await fetch('/api/habits', {
           method: 'POST',
@@ -122,7 +131,10 @@ async function loadHabits() {
     const savedMetrics = {};
     document.querySelectorAll('.metric-input').forEach(input => { if (input.value) savedMetrics[input.id] = input.value; });
 
-    const res = await fetch('/api/habits', { headers: { 'Authorization': `Bearer ${token}` } });
+    // Fetch the specific user's habits if in inspect mode
+    const queryStr = window.inspectUserId ? `?userId=${window.inspectUserId}` : '';
+    const res = await fetch('/api/habits' + queryStr, { headers: { 'Authorization': `Bearer ${token}` } });
+    
     if (!res.ok) return;
     const habits = await res.json();
     window.currentHabits = habits; 
@@ -210,7 +222,8 @@ window.deleteHabit = async function(id) {
   if(!confirm('Delete this habit?')) return;
   const token = localStorage.getItem('token');
   try {
-    await fetch(`/api/habits/${id}`, { method: 'DELETE', headers: { 'Authorization': `Bearer ${token}` } });
+    const queryStr = window.inspectUserId ? `?userId=${window.inspectUserId}` : '';
+    const res = await fetch(`/api/habits/${id}${queryStr}`, { method: 'DELETE', headers: { 'Authorization': `Bearer ${token}` } });
     loadHabits(); 
   } catch(e) {}
 }

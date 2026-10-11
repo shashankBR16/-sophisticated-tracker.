@@ -61,27 +61,35 @@ app.post('/api/auth/login', async (req, res) => {
 // --- HABITS ROUTES ---
 app.get('/api/habits', authenticateToken, async (req, res) => {
   try {
-    const [rows] = await pool.query('SELECT * FROM habits WHERE user_id = ?', [req.user.id]);
+    // If admin passes a userId in the URL, use that. Otherwise use their own ID.
+    const targetId = (req.query.userId && req.user.role === 'admin') ? req.query.userId : req.user.id;
+    const [rows] = await pool.query('SELECT * FROM habits WHERE user_id = ?', [targetId]);
     res.json(rows);
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
 app.post('/api/habits', authenticateToken, async (req, res) => {
   try {
-    const { title, type, unit, target } = req.body;
-    const [existing] = await pool.query('SELECT * FROM habits WHERE user_id = ? AND title = ?', [req.user.id, title]);
+    const { title, type, unit, target, userId } = req.body;
+    const targetId = (userId && req.user.role === 'admin') ? userId : req.user.id;
+    
+    const [existing] = await pool.query('SELECT * FROM habits WHERE user_id = ? AND title = ?', [targetId, title]);
     if (existing.length > 0) return res.status(400).json({ error: 'Habit already exists.' });
-    await pool.query('INSERT INTO habits (user_id, title, type, unit, target) VALUES (?, ?, ?, ?, ?)', [req.user.id, title, type || 'boolean', unit || null, target || null]);
+    
+    await pool.query('INSERT INTO habits (user_id, title, type, unit, target) VALUES (?, ?, ?, ?, ?)', 
+      [targetId, title, type || 'boolean', unit || null, target || null]);
     res.status(201).json({ message: 'Habit added' });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
 app.delete('/api/habits/:id', authenticateToken, async (req, res) => {
   try {
-    await pool.query('DELETE FROM habits WHERE id = ? AND user_id = ?', [req.params.id, req.user.id]);
+    const targetId = (req.query.userId && req.user.role === 'admin') ? req.query.userId : req.user.id;
+    await pool.query('DELETE FROM habits WHERE id = ? AND user_id = ?', [req.params.id, targetId]);
     res.json({ message: 'Deleted' });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
+
 
 // --- REMINDERS ROUTES ---
 app.get('/api/reminders', authenticateToken, async (req, res) => {

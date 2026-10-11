@@ -2,7 +2,6 @@ document.addEventListener('DOMContentLoaded', () => {
   const token = localStorage.getItem('token');
   const userStr = localStorage.getItem('user');
   
-  // Security Gate
   if (!token || !userStr) return window.location.href = '/index.html';
   const user = JSON.parse(userStr);
   if (user.role !== 'admin') {
@@ -10,7 +9,6 @@ document.addEventListener('DOMContentLoaded', () => {
     return window.location.href = '/dashboard.html';
   }
 
-  // Logout Handler
   const logoutBtn = Array.from(document.querySelectorAll('a')).find(el => el.innerText.includes('Logout'));
   if (logoutBtn) {
     logoutBtn.addEventListener('click', (e) => {
@@ -40,7 +38,6 @@ async function loadUsers() {
       container.style.flexDirection = 'column';
       container.style.gap = '10px';
       
-      // FIX: Force the main card to stack items vertically
       const card = document.querySelector('.card') || document.body;
       if (card.classList.contains('card')) {
          card.style.display = 'flex';
@@ -56,7 +53,8 @@ async function loadUsers() {
         <div style="flex: 2; color: #cbd5e1;">${u.email}</div>
         <div style="flex: 1; color: #34d399; font-weight: bold;">${u.habit_count} Habits</div>
         <div style="flex: 1.5; text-align: right; display: flex; gap: 10px; justify-content: flex-end;">
-          <button onclick="alert('User Inspect Data:\\nID: ${u.id}\\nUsername: ${u.username}\\nEmail: ${u.email}\\nHabits Tracked: ${u.habit_count}')" style="background: #3b82f6; color: white; border: none; padding: 6px 12px; border-radius: 6px; cursor: pointer; font-weight: bold;">Inspect</button>
+          <!-- FIX: Inspect button now teleports you to their dashboard! -->
+          <button onclick="window.location.href='/dashboard.html?inspect=${u.id}&name=${encodeURIComponent(u.username)}'" style="background: #3b82f6; color: white; border: none; padding: 6px 12px; border-radius: 6px; cursor: pointer; font-weight: bold;">Inspect</button>
           <button onclick="deleteUser(${u.id})" style="background: #ef4444; color: white; border: none; padding: 6px 12px; border-radius: 6px; cursor: pointer; font-weight: bold;">Delete</button>
         </div>
       </div>
