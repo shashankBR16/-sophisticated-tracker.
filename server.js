@@ -80,12 +80,7 @@ app.post('/api/auth/login', async (req, res) => {
 app.get('/api/habits', authenticateToken, async (req, res) => {
   try {
     const [rows] = await pool.query('SELECT * FROM habits WHERE user_id = ?', [req.user.id]);
-    // Map habit_name to name for frontend compatibility
-    const formattedRows = rows.map(h => ({
-      ...h,
-      name: h.habit_name || h.name
-    }));
-    res.json(formattedRows);
+    res.json(rows);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -93,10 +88,10 @@ app.get('/api/habits', authenticateToken, async (req, res) => {
 
 app.post('/api/habits', authenticateToken, async (req, res) => {
   try {
-    const { name, category, target } = req.body;
+    const { title, type, unit, target } = req.body;
     await pool.query(
-      'INSERT INTO habits (user_id, habit_name, category, target) VALUES (?, ?, ?, ?)',
-      [req.user.id, name, category || 'Daily', target || 'Done']
+      'INSERT INTO habits (user_id, title, type, unit, target) VALUES (?, ?, ?, ?, ?)',
+      [req.user.id, title, type || 'boolean', unit || null, target || null]
     );
     res.status(201).json({ message: 'Habit added successfully' });
   } catch (err) {

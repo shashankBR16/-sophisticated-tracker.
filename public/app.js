@@ -19,20 +19,31 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 
-  // Preset Selectors (Daily Tasks & Health Metrics)
+  // Preset Selectors & Input Elements
   const taskPreset = document.getElementById('dailyTaskPreset') || document.querySelectorAll('select')[0];
   const healthPreset = document.getElementById('healthMetricPreset') || document.querySelectorAll('select')[1];
   const habitNameInput = document.getElementById('habitName') || document.querySelector('input[type="text"]');
 
-  let selectedCategory = 'Daily';
+  let currentPayload = {
+    title: '',
+    type: 'boolean',
+    unit: null,
+    target: null
+  };
 
   if (taskPreset && habitNameInput) {
     taskPreset.addEventListener('change', (e) => {
       const val = e.target.value;
       if (val) {
-        habitNameInput.value = val.split('|')[0].trim();
-        selectedCategory = 'Daily';
-        if (healthPreset) healthPreset.selectedIndex = 0; // Reset other dropdown
+        const parts = val.split('|');
+        currentPayload = {
+          title: parts[0].trim(),
+          type: parts[1] || 'boolean',
+          unit: parts[2] || null,
+          target: parts[3] ? parseFloat(parts[3]) : null
+        };
+        habitNameInput.value = currentPayload.title;
+        if (healthPreset) healthPreset.selectedIndex = 0;
       }
     });
   }
@@ -41,10 +52,22 @@ document.addEventListener('DOMContentLoaded', () => {
     healthPreset.addEventListener('change', (e) => {
       const val = e.target.value;
       if (val) {
-        habitNameInput.value = val.split('|')[0].trim();
-        selectedCategory = 'Health';
-        if (taskPreset) taskPreset.selectedIndex = 0; // Reset other dropdown
+        const parts = val.split('|');
+        currentPayload = {
+          title: parts[0].trim(),
+          type: parts[1] || 'number',
+          unit: parts[2] || null,
+          target: parts[3] ? parseFloat(parts[3]) : null
+        };
+        habitNameInput.value = currentPayload.title;
+        if (taskPreset) taskPreset.selectedIndex = 0;
       }
+    });
+  }
+
+  if (habitNameInput) {
+    habitNameInput.addEventListener('input', (e) => {
+      currentPayload.title = e.target.value.trim();
     });
   }
 
@@ -53,9 +76,12 @@ document.addEventListener('DOMContentLoaded', () => {
   if (addForm) {
     addForm.addEventListener('submit', async (e) => {
       e.preventDefault();
-      const name = habitNameInput.value.trim();
-      if (!name) {
-        alert('Please select or enter a habit name.');
+      if (!currentPayload.title && habitNameInput) {
+        currentPayload.title = habitNameInput.value.trim();
+      }
+
+      if (!currentPayload.title) {
+        alert('Please enter or select a habit name.');
         return;
       }
 
@@ -66,11 +92,12 @@ document.addEventListener('DOMContentLoaded', () => {
             'Content-Type': 'application/json',
             'Authorization': `Bearer ${token}`
           },
-          body: JSON.stringify({ name, category: selectedCategory, target: 'Done' })
+          body: JSON.stringify(currentPayload)
         });
 
         if (res.ok) {
-          habitNameInput.value = '';
+          if (habitNameInput) habitNameInput.value = '';
+          currentPayload = { title: '', type: 'boolean', unit: null, target: null };
           if (taskPreset) taskPreset.selectedIndex = 0;
           if (healthPreset) healthPreset.selectedIndex = 0;
           loadHabits();
@@ -97,7 +124,7 @@ async function loadHabits() {
       const habits = await res.json();
       const container = document.getElementById('habitsContainer');
       if (container) {
-        container.innerHTML = habits.map(h => `<div class="habit-item"><span>${h.name || h.habit_name}</span></div>`).join('');
+        container.innerHTML = habits.map(h => `<div class="habit-item"><span>${h.title}</span> (${h.type})</div>`).join('');
       }
     }
   } catch (err) {
