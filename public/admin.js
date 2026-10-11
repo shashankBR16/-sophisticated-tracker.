@@ -2,6 +2,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const token = localStorage.getItem('token');
   const userStr = localStorage.getItem('user');
   
+  // Security Gate
   if (!token || !userStr) return window.location.href = '/index.html';
   const user = JSON.parse(userStr);
   if (user.role !== 'admin') {
@@ -9,6 +10,7 @@ document.addEventListener('DOMContentLoaded', () => {
     return window.location.href = '/dashboard.html';
   }
 
+  // Logout Handler
   const logoutBtn = Array.from(document.querySelectorAll('a')).find(el => el.innerText.includes('Logout'));
   if (logoutBtn) {
     logoutBtn.addEventListener('click', (e) => {
@@ -32,30 +34,29 @@ async function loadUsers() {
     if (!container) {
       container = document.createElement('div');
       container.id = 'adminUsersList';
-      container.style.marginTop = '15px';
+      container.style.width = '100%';
+      container.style.marginTop = '20px';
       container.style.display = 'flex';
       container.style.flexDirection = 'column';
       container.style.gap = '10px';
       
-      // FIX: Places the list directly underneath the header row, keeping it inside the card
-      const headersContainer = Array.from(document.querySelectorAll('div')).find(el => el.innerText.includes('Username') && el.innerText.includes('Email'));
-      
-      if (headersContainer) {
-        headersContainer.after(container);
-      } else {
-        const card = document.querySelector('.card');
-        if (card) card.appendChild(container);
-        else document.body.appendChild(container);
+      // FIX: Force the main card to stack items vertically
+      const card = document.querySelector('.card') || document.body;
+      if (card.classList.contains('card')) {
+         card.style.display = 'flex';
+         card.style.flexDirection = 'column';
       }
+      card.appendChild(container);
     }
 
     container.innerHTML = users.map(u => `
-      <div style="display: flex; align-items: center; padding: 12px 20px; background: rgba(30, 41, 59, 0.8); border: 1px solid #334155; border-radius: 8px; color: #f8fafc; font-size: 0.95rem;">
+      <div style="display: flex; align-items: center; padding: 12px 20px; background: rgba(30, 41, 59, 0.8); border: 1px solid #334155; border-radius: 8px; color: #f8fafc; font-size: 0.95rem; width: 100%; box-sizing: border-box;">
         <div style="flex: 0.5; color: #94a3b8;">${u.id}</div>
         <div style="flex: 1.5; font-weight: bold; color: #38bdf8;">${u.username}</div>
         <div style="flex: 2; color: #cbd5e1;">${u.email}</div>
         <div style="flex: 1; color: #34d399; font-weight: bold;">${u.habit_count} Habits</div>
-        <div style="flex: 1; text-align: right;">
+        <div style="flex: 1.5; text-align: right; display: flex; gap: 10px; justify-content: flex-end;">
+          <button onclick="alert('User Inspect Data:\\nID: ${u.id}\\nUsername: ${u.username}\\nEmail: ${u.email}\\nHabits Tracked: ${u.habit_count}')" style="background: #3b82f6; color: white; border: none; padding: 6px 12px; border-radius: 6px; cursor: pointer; font-weight: bold;">Inspect</button>
           <button onclick="deleteUser(${u.id})" style="background: #ef4444; color: white; border: none; padding: 6px 12px; border-radius: 6px; cursor: pointer; font-weight: bold;">Delete</button>
         </div>
       </div>
@@ -67,7 +68,7 @@ async function loadUsers() {
 }
 
 window.deleteUser = async function(id) {
-  if (!confirm('WARNING: Are you sure you want to permanently delete this user and all their tracked habits?')) return;
+  if (!confirm('WARNING: Are you sure you want to permanently delete this user?')) return;
   const token = localStorage.getItem('token');
   try {
     const res = await fetch(`/api/admin/users/${id}`, { method: 'DELETE', headers: { 'Authorization': `Bearer ${token}` } });
