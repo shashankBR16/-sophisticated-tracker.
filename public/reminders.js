@@ -15,18 +15,26 @@ document.addEventListener('DOMContentLoaded', async () => {
   try {
     const res = await fetch('/api/habits', { headers: { 'Authorization': `Bearer ${token}` } });
     if (res.ok) allHabits = await res.json();
-  } catch (err) {}
+  } catch (err) {
+    console.error('Error fetching habits for reminders:', err);
+  }
 
-  // FIXED: Filters dynamically based on the text visible in the dropdown
+  // BULLETPROOF DROPDOWN FILTER: Uses both 'type' and 'target' to catch older database entries
   function updateItemDropdown() {
     if (!categorySelect || !itemSelect) return;
-    const categoryText = categorySelect.options[categorySelect.selectedIndex].text.toLowerCase();
+    
+    const catText = (categorySelect.options[categorySelect.selectedIndex].text || "").toLowerCase();
+    const catVal = (categorySelect.value || "").toLowerCase();
     
     let filtered = allHabits;
-    if (categoryText.includes('task')) {
-      filtered = allHabits.filter(h => h.type === 'boolean');
-    } else if (categoryText.includes('health') || categoryText.includes('metric')) {
-      filtered = allHabits.filter(h => h.type === 'number');
+    
+    if (catText.includes('task') || catVal.includes('task')) {
+      // Tasks are 'boolean' type or have no target
+      filtered = allHabits.filter(h => h.type === 'boolean' || h.target === null || h.target === 0);
+    } 
+    else if (catText.includes('health') || catText.includes('metric') || catVal.includes('health')) {
+      // Metrics are 'number' type or have a target > 0
+      filtered = allHabits.filter(h => h.type === 'number' || h.target > 0);
     }
 
     if (filtered.length > 0) {
@@ -38,7 +46,8 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   if (categorySelect) {
     categorySelect.addEventListener('change', updateItemDropdown);
-    updateItemDropdown(); 
+    // Add a slight delay on initial load to ensure DOM is fully ready
+    setTimeout(updateItemDropdown, 100); 
   }
 
   // SAVE REMINDER LOGIC
@@ -58,9 +67,11 @@ document.addEventListener('DOMContentLoaded', async () => {
         });
         if (res.ok) {
           alert('Reminder saved successfully!');
-          loadReminders(); // Instantly refresh the list
+          loadReminders(); 
         } 
-      } catch (err) {}
+      } catch (err) {
+        console.error(err);
+      }
     });
   }
 
@@ -76,7 +87,9 @@ document.addEventListener('DOMContentLoaded', async () => {
         } else {
           alert('BREVO ERROR:\n' + (data.error || JSON.stringify(data)));
         }
-      } catch (err) { alert('Network error connecting to API.'); }
+      } catch (err) { 
+        alert('Network error connecting to API.'); 
+      }
     });
   }
 
@@ -107,7 +120,9 @@ document.addEventListener('DOMContentLoaded', async () => {
           </div>
         `).join('') : '<p style="color:#94a3b8;">No reminders set.</p>'}
       `;
-    } catch (err) {}
+    } catch (err) {
+      console.error(err);
+    }
   }
 
   loadReminders();
