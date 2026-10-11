@@ -89,12 +89,8 @@ app.get('/api/habits', authenticateToken, async (req, res) => {
 app.post('/api/habits', authenticateToken, async (req, res) => {
   try {
     const { title, type, unit, target } = req.body;
-    
-    // PREVENT DUPLICATES
     const [existing] = await pool.query('SELECT * FROM habits WHERE user_id = ? AND title = ?', [req.user.id, title]);
-    if (existing.length > 0) {
-      return res.status(400).json({ error: 'This habit already exists in your list.' });
-    }
+    if (existing.length > 0) return res.status(400).json({ error: 'This habit already exists in your list.' });
 
     await pool.query(
       'INSERT INTO habits (user_id, title, type, unit, target) VALUES (?, ?, ?, ?, ?)',
@@ -106,7 +102,6 @@ app.post('/api/habits', authenticateToken, async (req, res) => {
   }
 });
 
-// ADDED DELETE ROUTE
 app.delete('/api/habits/:id', authenticateToken, async (req, res) => {
   try {
     await pool.query('DELETE FROM habits WHERE id = ? AND user_id = ?', [req.params.id, req.user.id]);
@@ -116,8 +111,41 @@ app.delete('/api/habits/:id', authenticateToken, async (req, res) => {
   }
 });
 
+// --- REMINDERS ROUTES ---
+app.post('/api/reminders', authenticateToken, async (req, res) => {
+  try {
+    const { item_type, item_id, start_time } = req.body;
+    await pool.query(
+      'INSERT INTO reminders (user_id, item_type, item_id, start_time) VALUES (?, ?, ?, ?)',
+      [req.user.id, item_type, item_id, start_time]
+    );
+    res.status(201).json({ message: 'Reminder saved successfully' });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/reminders/test-email', authenticateToken, async (req, res) => {
+  try {
+    const transporter = nodemailer.createTransport({
+      service: 'gmail',
+      auth: {
+        user: process.env.EMAIL_USER,
+        pass: process.env.EMAIL_PASS
+      }
+    });
+    await transporter.sendMail({
+      from: process.env.EMAIL_USER,
+      to: req.user.email,
+      subject: 'Sophisticated Tracker - Test Email',
+      text: 'Hello! Your email reminder service is configured correctly.'
+    });
+    res.json({ message: 'Test email sent successfully!' });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to send email. Check EMAIL_USER and EMAIL_PASS in Render.' });
+  }
+});
+
 // --- START SERVER ---
 const PORT = process.env.PORT || 10000;
-app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
-});
+app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
