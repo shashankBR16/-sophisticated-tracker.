@@ -12,7 +12,7 @@ app.use(express.json());
 app.use(cors());
 app.use(express.static(path.join(__dirname, 'public')));
 
-// Database Connection Pool using environment variables
+// Database Connection Pool
 const pool = mysql.createPool({
   host: process.env.DB_HOST,
   user: process.env.DB_USER,
@@ -89,6 +89,13 @@ app.get('/api/habits', authenticateToken, async (req, res) => {
 app.post('/api/habits', authenticateToken, async (req, res) => {
   try {
     const { title, type, unit, target } = req.body;
+    
+    // PREVENT DUPLICATES
+    const [existing] = await pool.query('SELECT * FROM habits WHERE user_id = ? AND title = ?', [req.user.id, title]);
+    if (existing.length > 0) {
+      return res.status(400).json({ error: 'This habit already exists in your list.' });
+    }
+
     await pool.query(
       'INSERT INTO habits (user_id, title, type, unit, target) VALUES (?, ?, ?, ?, ?)',
       [req.user.id, title, type || 'boolean', unit || null, target || null]
@@ -99,27 +106,13 @@ app.post('/api/habits', authenticateToken, async (req, res) => {
   }
 });
 
-// --- TEST EMAIL ROUTE ---
-app.post('/api/reminders/test-email', authenticateToken, async (req, res) => {
+// ADDED DELETE ROUTE
+app.delete('/api/habits/:id', authenticateToken, async (req, res) => {
   try {
-    const transporter = nodemailer.createTransport({
-      service: 'gmail',
-      auth: {
-        user: process.env.EMAIL_USER,
-        pass: process.env.EMAIL_PASS
-      }
-    });
-
-    await transporter.sendMail({
-      from: process.env.EMAIL_USER,
-      to: req.user.email,
-      subject: 'Sophisticated Tracker - Test Email',
-      text: 'Hello! Your email reminder service is configured correctly.'
-    });
-
-    res.json({ message: 'Test email sent successfully!' });
+    await pool.query('DELETE FROM habits WHERE id = ? AND user_id = ?', [req.params.id, req.user.id]);
+    res.json({ message: 'Habit deleted successfully' });
   } catch (err) {
-    res.status(500).json({ error: 'Failed to send email: ' + err.message });
+    res.status(500).json({ error: err.message });
   }
 });
 

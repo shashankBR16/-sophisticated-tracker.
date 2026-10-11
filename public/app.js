@@ -2,6 +2,8 @@ document.addEventListener('DOMContentLoaded', () => {
   const token = localStorage.getItem('token');
   if (!token) return window.location.href = '/index.html';
 
+  window.currentHabits = []; // Store current list to check duplicates
+
   // 1. SET USERNAME
   const userStr = localStorage.getItem('user');
   if (userStr) {
@@ -9,9 +11,7 @@ document.addEventListener('DOMContentLoaded', () => {
       const user = JSON.parse(userStr);
       const greetingEl = document.getElementById('userNameDisplay');
       if (greetingEl && user.username) greetingEl.innerText = user.username;
-    } catch(e) {
-      console.error('Error parsing user', e);
-    }
+    } catch(e) { console.error(e); }
   }
 
   // 2. TOGGLE NUMBER INPUTS
@@ -61,6 +61,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
       if (!title) return alert('Please enter a habit name.');
 
+      // PREVENT DUPLICATES FRONTEND CHECK
+      const isDuplicate = window.currentHabits.some(h => h.title.toLowerCase() === title.toLowerCase());
+      if (isDuplicate) return alert('This habit is already in your tracker!');
+
       const payload = {
         title, type,
         unit: type === 'number' ? unit : null,
@@ -82,7 +86,8 @@ document.addEventListener('DOMContentLoaded', () => {
           document.getElementById('presetTasks').selectedIndex = 0;
           loadHabits();
         } else {
-          alert('Failed to add habit');
+          const data = await res.json();
+          alert(data.error || 'Failed to add habit');
         }
       } catch (err) {
         console.error(err);
@@ -104,9 +109,10 @@ document.addEventListener('DOMContentLoaded', () => {
   loadHabits();
 });
 
-// Global chart variables to prevent overlapping
+// Global chart tracking variables
 let mainPieChart;
 let growthLineChart;
+window.miniChartsRegistry = {}; 
 
 // 5. RENDER THE INTERACTIVE UI & CHARTS
 async function loadHabits() {
@@ -115,6 +121,7 @@ async function loadHabits() {
     const res = await fetch('/api/habits', { headers: { 'Authorization': `Bearer ${token}` } });
     if (!res.ok) return;
     const habits = await res.json();
+    window.currentHabits = habits; // Update global list
 
     const tasks = habits.filter(h => h.type === 'boolean');
     const metrics = habits.filter(h => h.type === 'number');
@@ -122,12 +129,12 @@ async function loadHabits() {
     const booleanList = document.getElementById('booleanHabitList');
     const numberList = document.getElementById('numberHabitList');
 
-    // UI for Daily Tasks (Checkboxes)
+    // UI for Daily Tasks (Checkboxes trigger updateTaskChart)
     if (booleanList) {
       booleanList.innerHTML = tasks.length ? tasks.map(h => `
         <div style="display: flex; justify-content: space-between; align-items: center; padding: 12px; margin-bottom: 8px; background: rgba(15, 23, 42, 0.6); border: 1px solid #334155; border-radius: 8px;">
           <div style="display: flex; align-items: center; gap: 12px;">
-            <input type="checkbox" style="width: 18px; height: 18px; accent-color: #38bdf8; cursor: pointer;" id="check_${h.id}">
+            <input type="checkbox" class="task-checkbox" onchange="updateTaskChart()" style="width: 18px; height: 18px; accent-color: #38bdf8; cursor: pointer;" id="check_${h.id}">
             <label for="check_${h.id}" style="color: #94a3b8; font-weight: 500; cursor: pointer;">${h.title}</label>
           </div>
           <button onclick="deleteHabit(${h.id})" style="color: #ef4444; background: none; border: none; font-size: 1.2rem; cursor: pointer;">✕</button>
@@ -135,12 +142,12 @@ async function loadHabits() {
       `).join('') : '<div style="color: #94a3b8; text-align: center;">No daily tasks yet.</div>';
     }
 
-    // UI for Health Metrics (Number Inputs & Units)
+    // UI for Health Metrics (Number inputs trigger updateMetricChart)
     if (numberList) {
       numberList.innerHTML = metrics.length ? metrics.map(h => `
         <div style="display: flex; justify-content: space-between; align-items: center; padding: 12px; margin-bottom: 8px; background: rgba(15, 23, 42, 0.6); border: 1px solid #334155; border-radius: 8px;">
           <div style="display: flex; align-items: center; gap: 10px;">
-            <input type="number" placeholder="0" style="width: 70px; padding: 6px; background: #0f172a; border: 1px solid #334155; color: #38bdf8; border-radius: 6px; outline: none;">
+            <input type="number" oninput="updateMetricChart(${h.id}, this.value, ${h.target})" placeholder="0" style="width: 70px; padding: 6px; background: #0f172a; border: 1px solid #334155; color: #38bdf8; border-radius: 6px; outline: none;">
             <span style="color: #64748b; font-size: 0.9em;">/ ${h.target} ${h.unit}</span>
             <span style="color: #38bdf8; font-weight: 600; margin-left: 8px;">${h.title}</span>
           </div>
@@ -149,7 +156,6 @@ async function loadHabits() {
       `).join('') : '<div style="color: #94a3b8; text-align: center;">No health metrics yet.</div>';
     }
 
-    // Initialize Charts
     renderCharts(tasks, metrics);
 
   } catch (err) {
@@ -157,12 +163,35 @@ async function loadHabits() {
   }
 }
 
-// Function to delete habits directly from UI
+// MAKE CHARTS INTERACTIVE
+window.updateTaskChart = function() {
+  const checkboxes = document.querySelectorAll('.task-checkbox');
+  let completed = 0;
+  checkboxes.forEach(c => { if(c.checked) completed++; });
+  const pending = checkboxes.length - completed;
+
+  if (mainPieChart) {
+    mainPieChart.data.datasets[0].data = [completed, pending];
+    mainPieChart.update();
+  }
+};
+
+window.updateMetricChart = function(id, value, target) {
+  const chart = window.miniChartsRegistry[id];
+  if (chart) {
+    let val = parseFloat(value) || 0;
+    let remaining = target - val;
+    if (remaining < 0) remaining = 0; // Prevent chart from reversing
+    chart.data.datasets[0].data = [val, remaining];
+    chart.update();
+  }
+};
+
+// DELETE FUNCTION
 window.deleteHabit = async function(id) {
   if(!confirm('Delete this habit?')) return;
   const token = localStorage.getItem('token');
   try {
-    // If backend supports delete, it will clear it. If not, this gracefully catches.
     await fetch(`/api/habits/${id}`, { method: 'DELETE', headers: { 'Authorization': `Bearer ${token}` } });
     loadHabits(); 
   } catch(e) { console.error(e); }
@@ -170,16 +199,15 @@ window.deleteHabit = async function(id) {
 
 // 6. RENDER GRAPHS
 function renderCharts(tasks, metrics) {
-  // A. Main Pie Chart (Daily Tasks)
   const pieCtx = document.getElementById('pieChart');
   if (pieCtx) {
-    if (mainPieChart) mainPieChart.destroy(); // Prevent overlap
+    if (mainPieChart) mainPieChart.destroy(); 
     mainPieChart = new Chart(pieCtx, {
       type: 'doughnut',
       data: {
         labels: ['Completed', 'Pending'],
         datasets: [{
-          data: [tasks.length > 0 ? 1 : 0, tasks.length > 0 ? tasks.length - 1 : 1],
+          data: [0, tasks.length > 0 ? tasks.length : 1], // Default to 0 completed on load
           backgroundColor: ['#38bdf8', '#fb7185'],
           borderWidth: 0,
           cutout: '60%'
@@ -189,10 +217,10 @@ function renderCharts(tasks, metrics) {
     });
   }
 
-  // B. Health Mini Charts
   const miniContainer = document.getElementById('healthMiniCharts');
   if (miniContainer) {
-    miniContainer.innerHTML = ''; // Clear old charts
+    miniContainer.innerHTML = ''; 
+    window.miniChartsRegistry = {}; // Clear old charts memory
     metrics.forEach(m => {
       const wrapper = document.createElement('div');
       wrapper.style = 'width: 80px; text-align: center;';
@@ -201,15 +229,14 @@ function renderCharts(tasks, metrics) {
         <div style="position: relative; height: 60px; width: 60px; margin: 0 auto;">
           <canvas id="mini_${m.id}"></canvas>
         </div>
-        <div style="font-size: 0.75rem; color: #34d399; margin-top: 5px;">0 / ${m.target}</div>
       `;
       miniContainer.appendChild(wrapper);
 
-      new Chart(document.getElementById(`mini_${m.id}`), {
+      window.miniChartsRegistry[m.id] = new Chart(document.getElementById(`mini_${m.id}`), {
         type: 'doughnut',
         data: {
           datasets: [{
-            data: [0, m.target], // Defaulting to 0 progress for visual setup
+            data: [0, m.target], // [Completed, Remaining]
             backgroundColor: ['#34d399', '#334155'],
             borderWidth: 0,
             cutout: '75%'
@@ -217,33 +244,6 @@ function renderCharts(tasks, metrics) {
         },
         options: { responsive: true, maintainAspectRatio: false, plugins: { tooltip: { enabled: false } } }
       });
-    });
-  }
-
-  // C. Line Chart (30-Day Growth)
-  const lineCtx = document.getElementById('lineChart');
-  if (lineCtx) {
-    if (growthLineChart) growthLineChart.destroy();
-    growthLineChart = new Chart(lineCtx, {
-      type: 'line',
-      data: {
-        labels: ['Sep 5', 'Sep 10', 'Sep 15', 'Sep 20', 'Sep 25', 'Sep 30'],
-        datasets: [{
-          label: 'Progress',
-          data: [0, 10, 25, 40, 60, 80],
-          borderColor: '#a78bfa',
-          tension: 0.4
-        }]
-      },
-      options: {
-        responsive: true,
-        maintainAspectRatio: false,
-        scales: {
-          y: { grid: { color: '#334155' }, ticks: { color: '#94a3b8' } },
-          x: { grid: { display: false }, ticks: { color: '#94a3b8' } }
-        },
-        plugins: { legend: { display: false } }
-      }
     });
   }
 }
