@@ -97,26 +97,33 @@ app.post('/api/reminders', authenticateToken, async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-// FIXED FOR BREVO
+// --- TEST EMAIL ROUTE (USING BREVO API KEY INSTEAD OF SMTP) ---
 app.post('/api/reminders/test-email', authenticateToken, async (req, res) => {
   try {
-    const transporter = nodemailer.createTransport({
-      host: 'smtp-relay.brevo.com',
-      port: 587,
-      secure: false,
-      auth: {
-        user: process.env.EMAIL_USER,
-        pass: process.env.EMAIL_PASS // Must be the Brevo SMTP Key
-      }
+    const response = await fetch('https://api.brevo.com/v3/smtp/email', {
+      method: 'POST',
+      headers: {
+        'accept': 'application/json',
+        'api-key': process.env.EMAIL_PASS, // This now uses your saved API Key
+        'content-type': 'application/json'
+      },
+      body: JSON.stringify({
+        sender: { email: process.env.EMAIL_USER }, // Your verified Brevo sender email
+        to: [{ email: req.user.email }],
+        subject: 'Sophisticated Tracker - Test Email',
+        textContent: 'Hello! Your Brevo API email reminder service is configured correctly.'
+      })
     });
-    await transporter.sendMail({
-      from: process.env.EMAIL_USER,
-      to: req.user.email,
-      subject: 'Sophisticated Tracker - Test Email',
-      text: 'Hello! Your Brevo email reminder service is configured correctly.'
-    });
-    res.json({ message: 'Sent' });
-  } catch (err) { res.status(500).json({ error: err.message }); }
+
+    if (response.ok) {
+      res.json({ message: 'Test email sent successfully via API!' });
+    } else {
+      const errorData = await response.json();
+      res.status(500).json({ error: 'Brevo API Error: ' + JSON.stringify(errorData) });
+    }
+  } catch (err) {
+    res.status(500).json({ error: 'Network error: ' + err.message });
+  }
 });
 
 const PORT = process.env.PORT || 10000;
