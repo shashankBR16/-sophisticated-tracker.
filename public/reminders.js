@@ -5,7 +5,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     return;
   }
 
-  // Populate Select Item dropdown from user habits so it doesn't show "No items found"
   const selectItemDropdown = document.getElementById('selectItem') || document.querySelector('select:nth-of-type(2)');
   try {
     const res = await fetch('/api/habits', {
@@ -15,7 +14,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       const habits = await res.json();
       if (selectItemDropdown) {
         if (habits.length > 0) {
-          selectItemDropdown.innerHTML = habits.map(h => `<option value="${h.name}">${h.name}</option>`).join('');
+          selectItemDropdown.innerHTML = habits.map(h => `<option value="${h.id}">${h.title}</option>`).join('');
         } else {
           selectItemDropdown.innerHTML = '<option value="">No habits created yet</option>';
         }
@@ -25,7 +24,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     console.error('Failed to load items for reminders:', err);
   }
 
-  // Test Email Button Handler
   const testEmailBtn = document.getElementById('testEmailBtn');
   if (testEmailBtn) {
     testEmailBtn.addEventListener('click', async () => {

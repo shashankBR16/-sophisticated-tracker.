@@ -5,82 +5,86 @@ document.addEventListener('DOMContentLoaded', () => {
     return;
   }
 
-  // Display User Name
+  // Display User Greeting
   const userStr = localStorage.getItem('user');
   if (userStr) {
     try {
       const user = JSON.parse(userStr);
-      const greetingContainer = document.getElementById('userGreeting') || document.querySelector('h1, h2, span');
-      if (greetingContainer && user.username) {
-        greetingContainer.innerText = `Hi, ${user.username}`;
+      const greetingEl = document.getElementById('userGreeting');
+      if (greetingEl && user.username) {
+        greetingEl.innerText = `Hi, ${user.username}`;
       }
     } catch (e) {
       console.error('Error parsing user data', e);
     }
   }
 
-  // Preset Selectors & Input Elements
+  // Elements
+  const habitNameInput = document.getElementById('habitName') || document.querySelector('input[type="text"]');
   const taskPreset = document.getElementById('dailyTaskPreset') || document.querySelectorAll('select')[0];
   const healthPreset = document.getElementById('healthMetricPreset') || document.querySelectorAll('select')[1];
-  const habitNameInput = document.getElementById('habitName') || document.querySelector('input[type="text"]');
+  const addForm = document.getElementById('addHabitForm') || document.querySelector('form');
 
-  let currentPayload = {
+  let habitData = {
     title: '',
     type: 'boolean',
     unit: null,
     target: null
   };
 
+  // Handle Daily Task Preset Selection
   if (taskPreset && habitNameInput) {
     taskPreset.addEventListener('change', (e) => {
       const val = e.target.value;
       if (val) {
         const parts = val.split('|');
-        currentPayload = {
+        habitData = {
           title: parts[0].trim(),
           type: parts[1] || 'boolean',
           unit: parts[2] || null,
           target: parts[3] ? parseFloat(parts[3]) : null
         };
-        habitNameInput.value = currentPayload.title;
+        habitNameInput.value = habitData.title;
         if (healthPreset) healthPreset.selectedIndex = 0;
       }
     });
   }
 
+  // Handle Health Metric Preset Selection (captures units and targets)
   if (healthPreset && habitNameInput) {
     healthPreset.addEventListener('change', (e) => {
       const val = e.target.value;
       if (val) {
         const parts = val.split('|');
-        currentPayload = {
+        habitData = {
           title: parts[0].trim(),
           type: parts[1] || 'number',
           unit: parts[2] || null,
           target: parts[3] ? parseFloat(parts[3]) : null
         };
-        habitNameInput.value = currentPayload.title;
+        habitNameInput.value = habitData.title;
         if (taskPreset) taskPreset.selectedIndex = 0;
       }
     });
   }
 
+  // Manual typing override
   if (habitNameInput) {
     habitNameInput.addEventListener('input', (e) => {
-      currentPayload.title = e.target.value.trim();
+      habitData.title = e.target.value.trim();
+      if (!habitData.unit) habitData.type = 'boolean';
     });
   }
 
-  // Handle Add Habit Form submission
-  const addForm = document.getElementById('addHabitForm') || document.querySelector('form');
+  // Form Submission
   if (addForm) {
     addForm.addEventListener('submit', async (e) => {
       e.preventDefault();
-      if (!currentPayload.title && habitNameInput) {
-        currentPayload.title = habitNameInput.value.trim();
+      if (habitNameInput) {
+        habitData.title = habitNameInput.value.trim();
       }
 
-      if (!currentPayload.title) {
+      if (!habitData.title) {
         alert('Please enter or select a habit name.');
         return;
       }
@@ -92,12 +96,12 @@ document.addEventListener('DOMContentLoaded', () => {
             'Content-Type': 'application/json',
             'Authorization': `Bearer ${token}`
           },
-          body: JSON.stringify(currentPayload)
+          body: JSON.stringify(habitData)
         });
 
         if (res.ok) {
           if (habitNameInput) habitNameInput.value = '';
-          currentPayload = { title: '', type: 'boolean', unit: null, target: null };
+          habitData = { title: '', type: 'boolean', unit: null, target: null };
           if (taskPreset) taskPreset.selectedIndex = 0;
           if (healthPreset) healthPreset.selectedIndex = 0;
           loadHabits();
@@ -106,7 +110,7 @@ document.addEventListener('DOMContentLoaded', () => {
           alert(data.error || 'Failed to add habit');
         }
       } catch (err) {
-        console.error(err);
+        console.error('Submission error:', err);
       }
     });
   }
@@ -124,7 +128,11 @@ async function loadHabits() {
       const habits = await res.json();
       const container = document.getElementById('habitsContainer');
       if (container) {
-        container.innerHTML = habits.map(h => `<div class="habit-item"><span>${h.title}</span> (${h.type})</div>`).join('');
+        container.innerHTML = habits.map(h => `
+          <div class="habit-item" style="padding: 10px; margin-bottom: 5px; background: rgba(255,255,255,0.05); border-radius: 6px;">
+            <strong>${h.title}</strong> ${h.unit ? `(${h.target}${h.unit})` : ''}
+          </div>
+        `).join('');
       }
     }
   } catch (err) {
