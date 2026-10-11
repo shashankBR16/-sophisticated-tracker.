@@ -107,35 +107,47 @@ app.post('/api/reminders', authenticateToken, async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-// CRITICAL FIX: CLEAN BREVO API CALL
-app.post('/api/reminders/test-email', authenticateToken, async (req, res) => {
-  try {
-    const response = await fetch('https://api.brevo.com/v3/smtp/email', {
-      method: 'POST',
-      headers: {
-        'accept': 'application/json',
-        'api-key': process.env.EMAIL_PASS,
-        'content-type': 'application/json'
-      },
-      body: JSON.stringify({
-        sender: { email: process.env.EMAIL_USER },
-        to: [{ email: req.user.email }],
-        subject: 'Sophisticated Tracker - Test Email',
-        textContent: 'Hello! Your Brevo API email reminder service is working perfectly.'
-      })
-    });
+// CRITICAL FIX: NATIVE HTTPS FOR BREVO API (Bypasses Render 'fetch' errors)
+app.post('/api/reminders/test-email', authenticateToken, (req, res) => {
+  const https = require('https');
+  const postData = JSON.stringify({
+    sender: { email: process.env.EMAIL_USER },
+    to: [{ email: req.user.email }],
+    subject: 'Sophisticated Tracker - Test Email',
+    textContent: 'Hello! Your Brevo API email reminder service is working perfectly.'
+  });
 
-    const data = await response.json();
-    
-    if (response.ok) {
-      res.json({ message: 'Test email sent successfully via API!' });
-    } else {
-      // Sends the exact Brevo error back to your screen
-      res.status(400).json({ error: data.message || JSON.stringify(data) });
+  const options = {
+    hostname: 'api.brevo.com',
+    path: '/v3/smtp/email',
+    method: 'POST',
+    headers: {
+      'accept': 'application/json',
+      'api-key': process.env.EMAIL_PASS, // Your Brevo API Key
+      'content-type': 'application/json',
+      'content-length': Buffer.byteLength(postData)
     }
-  } catch (err) {
+  };
+
+  const request = https.request(options, (response) => {
+    let data = '';
+    response.on('data', (chunk) => { data += chunk; });
+    response.on('end', () => {
+      if (response.statusCode >= 200 && response.statusCode < 300) {
+        res.json({ message: 'Test email sent successfully via API!' });
+      } else {
+        // Sends the exact Brevo error back to your screen
+        res.status(400).json({ error: data });
+      }
+    });
+  });
+
+  request.on('error', (err) => {
     res.status(500).json({ error: 'Server network error: ' + err.message });
-  }
+  });
+
+  request.write(postData);
+  request.end();
 });
 
 // --- ADMIN ROUTES ---
