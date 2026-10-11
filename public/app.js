@@ -8,7 +8,7 @@ document.addEventListener('DOMContentLoaded', () => {
     try {
       const user = JSON.parse(userStr);
       const greetingEl = document.getElementById('userNameDisplay');
-      if (greetingEl && user.username) greetingEl.innerText = user.username; // Kept as original since HTML has "👋"
+      if (greetingEl && user.username) greetingEl.innerText = user.username; 
     } catch(e) {}
   }
 
@@ -22,7 +22,7 @@ document.addEventListener('DOMContentLoaded', () => {
     let tasksDone = 0;
     checkboxes.forEach(c => { if(c.checked) tasksDone++; });
 
-    const numberInputs = document.querySelectorAll('input[type="number"]');
+    const numberInputs = document.querySelectorAll('.metric-input');
     let metricsHtml = '';
     numberInputs.forEach(input => {
       let val = parseFloat(input.value) || 0;
@@ -81,8 +81,10 @@ document.addEventListener('DOMContentLoaded', () => {
       const type = document.getElementById('habitType').value;
       const unit = document.getElementById('habitUnit').value.trim();
       const target = document.getElementById('habitTarget').value;
+      
       if (!title) return alert('Please enter a habit name.');
       if (window.currentHabits.some(h => h.title.toLowerCase() === title.toLowerCase())) return alert('Habit already exists!');
+      
       const payload = { title, type, unit: type === 'number' ? unit : null, target: type === 'number' ? parseFloat(target) : null };
       try {
         const res = await fetch('/api/habits', {
@@ -113,6 +115,18 @@ window.miniChartsRegistry = {};
 async function loadHabits() {
   const token = localStorage.getItem('token');
   try {
+    // 1. TAKE SNAPSHOT OF CURRENT PROGRESS BEFORE REDRAWING
+    const savedTasks = [];
+    document.querySelectorAll('.task-checkbox').forEach(cb => {
+      if (cb.checked) savedTasks.push(cb.id);
+    });
+
+    const savedMetrics = {};
+    document.querySelectorAll('.metric-input').forEach(input => {
+      if (input.value) savedMetrics[input.id] = input.value;
+    });
+
+    // 2. FETCH NEW DATA
     const res = await fetch('/api/habits', { headers: { 'Authorization': `Bearer ${token}` } });
     if (!res.ok) return;
     const habits = await res.json();
@@ -124,11 +138,12 @@ async function loadHabits() {
     const booleanList = document.getElementById('booleanHabitList');
     const numberList = document.getElementById('numberHabitList');
 
+    // 3. DRAW NEW HTML
     if (booleanList) {
       booleanList.innerHTML = tasks.length ? tasks.map(h => `
         <div style="display: flex; justify-content: space-between; align-items: center; padding: 12px; margin-bottom: 8px; background: rgba(15, 23, 42, 0.6); border: 1px solid #334155; border-radius: 8px;">
           <div style="display: flex; align-items: center; gap: 12px;">
-            <input type="checkbox" class="task-checkbox" data-title="${h.title}" onchange="updateTaskChart()" style="width: 18px; height: 18px; accent-color: #38bdf8; cursor: pointer;">
+            <input type="checkbox" class="task-checkbox" data-title="${h.title}" onchange="updateTaskChart()" style="width: 18px; height: 18px; accent-color: #38bdf8; cursor: pointer;" id="check_${h.id}">
             <label style="color: #94a3b8; font-weight: 500;">${h.title}</label>
           </div>
           <button onclick="deleteHabit(${h.id})" style="color: #ef4444; background: none; border: none; font-size: 1.2rem; cursor: pointer;">✕</button>
@@ -140,7 +155,7 @@ async function loadHabits() {
       numberList.innerHTML = metrics.length ? metrics.map(h => `
         <div style="display: flex; justify-content: space-between; align-items: center; padding: 12px; margin-bottom: 8px; background: rgba(15, 23, 42, 0.6); border: 1px solid #334155; border-radius: 8px;">
           <div style="display: flex; align-items: center; gap: 10px;">
-            <input type="number" data-title="${h.title}" oninput="updateMetricChart(${h.id}, this.value, ${h.target}, '${h.title}')" placeholder="0" style="width: 70px; padding: 6px; background: #0f172a; border: 1px solid #334155; color: #38bdf8; border-radius: 6px; outline: none;">
+            <input type="number" id="metric_${h.id}" class="metric-input" data-title="${h.title}" oninput="updateMetricChart(${h.id}, this.value, ${h.target}, '${h.title}')" placeholder="0" style="width: 70px; padding: 6px; background: #0f172a; border: 1px solid #334155; color: #38bdf8; border-radius: 6px; outline: none;">
             <span style="color: #64748b; font-size: 0.9em;">/ ${h.target} ${h.unit}</span>
             <span style="color: #38bdf8; font-weight: 600; margin-left: 8px;">${h.title}</span>
           </div>
@@ -149,7 +164,25 @@ async function loadHabits() {
       `).join('') : '<div style="color: #94a3b8; text-align: center;">No metrics.</div>';
     }
 
+    // Initialize blank charts based on new lists
     renderCharts(tasks, metrics);
+
+    // 4. RESTORE SNAPSHOT PROGRESS & FORCE CHART UPDATES
+    savedTasks.forEach(id => {
+      const cb = document.getElementById(id);
+      if (cb) cb.checked = true;
+    });
+
+    Object.keys(savedMetrics).forEach(id => {
+      const input = document.getElementById(id);
+      if (input) {
+        input.value = savedMetrics[id];
+        input.dispatchEvent(new Event('input')); // Forces the bar chart to update
+      }
+    });
+
+    updateTaskChart(); // Forces the pie chart to update
+
   } catch (err) {}
 }
 
@@ -174,7 +207,7 @@ window.updateTaskChart = function() {
 
   if (pendingCount > 0) {
     labels.push('Pending');
-    data.push(pendingCount); // The actual remaining chunk size
+    data.push(pendingCount);
     bgColors.push('#334155');
   }
 
@@ -191,7 +224,6 @@ window.updateTaskChart = function() {
 window.updateMetricChart = function(id, value, target, title) {
   let val = parseFloat(value) || 0;
   
-  // Update Mini Chart
   const chart = window.miniChartsRegistry[id];
   if (chart) {
     let remaining = target - val;
@@ -200,7 +232,6 @@ window.updateMetricChart = function(id, value, target, title) {
     chart.update();
   }
   
-  // Update Bar Chart Progress
   if (growthBarChart) {
     const idx = growthBarChart.data.labels.indexOf(title);
     if (idx !== -1) {
@@ -262,7 +293,7 @@ function renderCharts(tasks, metrics) {
         labels: metrics.map(m => m.title),
         datasets: [{
           label: 'Current Progress',
-          data: metrics.map(() => 0), // Starts at 0, updates as you type!
+          data: metrics.map(() => 0),
           backgroundColor: '#38bdf8',
           borderRadius: 4
         }]
