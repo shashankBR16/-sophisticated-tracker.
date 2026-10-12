@@ -23,7 +23,7 @@
       <h3 style="color: #4dabf7; margin-top: 0;">Create New Reminder</h3>
       
       <label style="color: #a3a3a3; font-size: 14px; display: block; margin-bottom: 5px;">Category</label>
-      <select id="reminder-type" onchange="loadItems()" style="width: 100%; padding: 10px; margin-bottom: 15px; border-radius: 5px; background: #1a1a2e; color: white; border: 1px solid #333;">
+      <select id="reminder-type" onchange="filterDropdownItems()" style="width: 100%; padding: 10px; margin-bottom: 15px; border-radius: 5px; background: #1a1a2e; color: white; border: 1px solid #333;">
         <option value="habit">Habit</option>
         <option value="task">Task</option>
         <option value="health">Health Metric</option>
@@ -31,186 +31,173 @@
 
       <label style="color: #a3a3a3; font-size: 14px; display: block; margin-bottom: 5px;">Select Item</label>
       <select id="item-dropdown" style="width: 100%; padding: 10px; margin-bottom: 15px; border-radius: 5px; background: #1a1a2e; color: white; border: 1px solid #333;">
-        <option value="">-- Choose Item --</option>
+        <option value="">Loading...</option>
       </select>
 
-      <label style="color: #a3a3a3; font-size: 14px; display: block; margin-bottom: 5px;">Start Time</label>
-      <input type="time" id="start-time" required style="width: 100%; padding: 10px; margin-bottom: 20px; border-radius: 5px; background: #1a1a2e; color: white; border: 1px solid #333;">
+      <label style="color: #a3a3a3; font-size: 14px; display: block; margin-bottom: 5px;">Start Time <span style="color:#888; font-size:12px;">(Use 24-hour format for PM, e.g., 21:00 for 9:00 PM)</span></label>
+      <input type="time" id="start-time" required style="width: 100%; padding: 10px; margin-bottom: 15px; border-radius: 5px; background: #1a1a2e; color: white; border: 1px solid #333; color-scheme: dark;">
 
-      <button onclick="saveReminder()" style="width: 100%; padding: 12px; background: #4dabf7; color: #000; border: none; border-radius: 5px; font-weight: bold; cursor: pointer;">Save Reminder</button>
+      <!-- NEW: Repetitive Reminders -->
+      <label style="color: #a3a3a3; font-size: 14px; display: block; margin-bottom: 5px;">Repeat (Optional)</label>
+      <select id="repeat-interval" style="width: 100%; padding: 10px; margin-bottom: 20px; border-radius: 5px; background: #1a1a2e; color: white; border: 1px solid #333;">
+        <option value="0">Do not repeat (One-time)</option>
+        <option value="1">Every 1 Hour (generates 4 reminders)</option>
+        <option value="2">Every 2 Hours (generates 4 reminders)</option>
+        <option value="3">Every 3 Hours (generates 4 reminders)</option>
+      </select>
+
+      <button onclick="saveReminder()" style="width: 100%; padding: 12px; background: #4dabf7; color: #000; border: none; border-radius: 5px; font-weight: bold; cursor: pointer;">Save Reminder(s)</button>
+    </div>
+
+    <!-- BOX FOR SAVED REMINDERS -->
+    <div id="saved-reminders-box" style="margin-top: 30px; background: #11111f; padding: 20px; border-radius: 8px; border: 1px solid #333;">
+      <h3 style="color: #4dabf7; margin-top: 0; border-bottom: 1px solid #333; padding-bottom: 8px;">Scheduled Reminders</h3>
+      <div id="reminders-list">Loading...</div>
     </div>
   </div>
 
- <script>
-  let allHabits = [];
+  <script>
+    let allHabits = [];
 
-  // 1. Fetch all user habits when page loads
-  async function loadItems() {
-    const dropdown = document.getElementById('item-dropdown');
-    dropdown.innerHTML = '<option value="">Loading...</option>';
-
-    try {
-      const res = await fetch('/api/habits', {
-        headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
-      });
-      
-      if (!res.ok) throw new Error('Failed to fetch items');
-      allHabits = await res.json();
-      
-      filterDropdownItems();
-    } catch (err) {
-      console.error("Error loading items:", err);
-      dropdown.innerHTML = '<option value="">No items found</option>';
-    }
-  }
-
-  // 2. Filter items based on Category
-  function filterDropdownItems() {
-    const category = document.getElementById('reminder-type').value;
-    const dropdown = document.getElementById('item-dropdown');
-    
-    let filtered = allHabits;
-    
-    if (category === 'task') {
-      filtered = allHabits.filter(h => h.type === 'boolean' || h.target === null);
-    } else if (category === 'health') {
-      filtered = allHabits.filter(h => h.type === 'number' || h.target > 0);
+    // Helper Function: Converts 24h DB time (21:53) to 12h AM/PM (09:53 PM)
+    function formatAMPM(timeStr) {
+      if (!timeStr) return '';
+      let [hours, minutes] = timeStr.split(':');
+      hours = parseInt(hours);
+      const ampm = hours >= 12 ? 'PM' : 'AM';
+      hours = hours % 12;
+      hours = hours ? hours : 12; 
+      return `${String(hours).padStart(2, '0')}:${minutes} ${ampm}`;
     }
 
-    if (filtered.length > 0) {
-      dropdown.innerHTML = '<option value="">-- Choose Item --</option>';
-      filtered.forEach(item => {
-        const option = document.createElement('option');
-        option.value = item.id;
-        option.textContent = item.title || item.name;
-        dropdown.appendChild(option);
-      });
-    } else {
-      dropdown.innerHTML = '<option value="">No items found</option>';
-    }
-  }
-
-  document.getElementById('reminder-type').addEventListener('change', filterDropdownItems);
-
-  // 3. Save the reminder
-  async function saveReminder() {
-    const categorySelect = document.getElementById('reminder-type');
-    const item_type = categorySelect.options[categorySelect.selectedIndex].text;
-    const item_id = document.getElementById('item-dropdown').value;
-    const start_time = document.getElementById('start-time').value;
-
-    if (!item_id || !start_time) {
-      alert("Please select an item and time.");
-      return;
-    }
-
-    try {
-      const res = await fetch('/api/reminders', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('token')}`
-        },
-        body: JSON.stringify({ item_type, item_id, start_time })
-      });
-      
-      if (res.ok) {
-        alert('Reminder saved successfully!');
+    async function loadItems() {
+      try {
+        const res = await fetch('/api/habits', { headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` } });
+        if (!res.ok) throw new Error('Failed to fetch items');
+        allHabits = await res.json();
+        filterDropdownItems();
         loadSavedReminders();
-      } else {
-        const data = await res.json();
-        alert('Error: ' + (data.error || 'Failed to save'));
+      } catch (err) {
+        document.getElementById('item-dropdown').innerHTML = '<option value="">No items found</option>';
       }
-    } catch (err) {
-      console.error(err);
     }
-  }
 
-  // 4. Test Email Connection
-  async function testEmail() {
-    try {
-      const res = await fetch('/api/reminders/test-email', {
-        method: 'POST',
-        headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
-      });
-      const data = await res.json();
+    function filterDropdownItems() {
+      const category = document.getElementById('reminder-type').value;
+      const dropdown = document.getElementById('item-dropdown');
       
-      if(res.ok) {
-        alert(data.message || 'SUCCESS! Check your inbox.');
-      } else {
-        alert('BREVO ERROR:\n' + (data.error || JSON.stringify(data)));
+      let filtered = allHabits;
+      if (category === 'task') {
+        filtered = allHabits.filter(h => h.type === 'boolean' || h.target === null || h.target === 0);
+      } else if (category === 'health') {
+        filtered = allHabits.filter(h => h.type === 'number' || h.target > 0);
       }
-    } catch (err) {
-      console.error(err);
-      alert('Network error connecting to email API.');
-    }
-  }
 
-      // Instantly deletes a reminder with detailed error reporting
+      if (filtered.length > 0) {
+        dropdown.innerHTML = '<option value="">-- Choose Item --</option>';
+        filtered.forEach(item => {
+          const option = document.createElement('option');
+          option.value = item.id;
+          option.textContent = item.title;
+          dropdown.appendChild(option);
+        });
+      } else {
+        dropdown.innerHTML = '<option value="">No items found</option>';
+      }
+    }
+
+    // NEW: Handles single and repetitive saving
+    async function saveReminder() {
+      const selectCategory = document.getElementById('reminder-type');
+      const item_type = selectCategory.options[selectCategory.selectedIndex].text;
+      const item_id = document.getElementById('item-dropdown').value;
+      const start_time = document.getElementById('start-time').value;
+      const repeat_interval = parseInt(document.getElementById('repeat-interval').value);
+
+      if (!item_id || !start_time) return alert("Please select an item and time.");
+
+      try {
+        // Calculate the times we need to save based on the interval selected
+        let timesToSave = [start_time];
+        
+        if (repeat_interval > 0) {
+          let [hours, minutes] = start_time.split(':');
+          let currentHour = parseInt(hours);
+          
+          for (let i = 1; i <= 4; i++) { // Generates the original time + 4 repeating future times
+            currentHour += repeat_interval;
+            if (currentHour >= 24) break; // Stops calculating if it rolls over past midnight
+            let nextTime = String(currentHour).padStart(2, '0') + ':' + minutes;
+            timesToSave.push(nextTime);
+          }
+        }
+
+        // Loop through all calculated times and save them instantly
+        for (const time of timesToSave) {
+          const res = await fetch('/api/reminders', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${localStorage.getItem('token')}` },
+            body: JSON.stringify({ item_type, item_id, start_time: time })
+          });
+          if (!res.ok) throw new Error('Failed to save a reminder');
+        }
+
+        alert(`Saved ${timesToSave.length} reminder(s) successfully!`);
+        loadSavedReminders(); 
+      } catch (err) { 
+        console.error(err); 
+        alert('Error saving reminders.');
+      }
+    }
+
+    async function testEmail() {
+      try {
+        const res = await fetch('/api/reminders/test-email', {
+          method: 'POST',
+          headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
+        });
+        const data = await res.json();
+        if(res.ok) alert(data.message);
+        else alert('EMAIL ERROR:\n' + (data.error || 'Check server logs.'));
+      } catch (err) { alert('Network error communicating with the server.'); }
+    }
+
+    async function loadSavedReminders() {
+      try {
+        const res = await fetch('/api/reminders', { headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` } });
+        const reminders = await res.json();
+        const listDiv = document.getElementById('reminders-list');
+        
+        if (reminders.length > 0) {
+          listDiv.innerHTML = reminders.map(r => `
+            <div style="background: #1a1a2e; padding: 12px; border-radius: 6px; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center; border: 1px solid #222;">
+              <span><strong style="color: #a78bfa;">${r.title || 'Item'}</strong> <span style="color: #888; font-size: 0.85rem;">(${r.item_type})</span></span>
+              <div style="display: flex; align-items: center; gap: 10px;">
+                <!-- Displays the time in beautiful 12-hour AM/PM format -->
+                <span style="color: #20c997; font-weight: bold; background: rgba(32, 201, 151, 0.1); padding: 4px 8px; border-radius: 4px;">🕒 ${formatAMPM(r.start_time)}</span>
+                <button onclick="deleteReminder(${r.id})" style="background: none; border: none; color: #ef4444; font-size: 1.2rem; cursor: pointer; padding: 0 5px;" title="Delete">✕</button>
+              </div>
+            </div>
+          `).join('');
+        } else {
+          listDiv.innerHTML = '<p style="color: #888;">No reminders set yet.</p>';
+        }
+      } catch (err) { console.error(err); }
+    }
+
     window.deleteReminder = async function(id) {
-      if (!confirm('Are you sure you want to delete this reminder?')) return;
+      if (!confirm('Delete this reminder?')) return;
       try {
         const res = await fetch(`/api/reminders/${id}`, {
           method: 'DELETE',
           headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
         });
-        
-        if (res.ok) {
-          loadSavedReminders(); // Refreshes the display box instantly
-        } else {
-          const data = await res.json();
-          alert('Failed to delete: ' + (data.error || 'Unknown server error'));
-        }
-      } catch (err) { 
-        console.error(err);
-        alert('Network error while trying to delete.');
-      }
+        if (res.ok) loadSavedReminders();
+        else alert('Failed to delete reminder.');
+      } catch (err) { console.error(err); }
     };
 
-  // 6. Fetch and display saved reminders with delete buttons
-  async function loadSavedReminders() {
-    try {
-      const res = await fetch('/api/reminders', {
-        headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
-      });
-      if (!res.ok) return;
-      const reminders = await res.json();
-
-      let container = document.getElementById('savedRemindersBox');
-      if (!container) {
-        container = document.createElement('div');
-        container.id = 'savedRemindersBox';
-        container.style.marginTop = '30px';
-        container.style.background = '#11111f';
-        container.style.padding = '20px';
-        container.style.borderRadius = '8px';
-        container.style.border = '1px solid #333';
-        document.querySelector('div[style*="max-width: 800px"]').appendChild(container);
-      }
-
-      container.innerHTML = `
-        <h3 style="color: #4dabf7; margin-top: 0; border-bottom: 1px solid #333; padding-bottom: 8px;">Scheduled Reminders</h3>
-        ${reminders.length > 0 ? reminders.map(r => `
-          <div style="background: #1a1a2e; padding: 12px; border-radius: 6px; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center; border: 1px solid #222;">
-            <span><strong style="color: #a78bfa;">${r.title || 'Item'}</strong> <span style="color: #888; font-size: 0.85rem;">(${r.item_type})</span></span>
-            <div style="display: flex; align-items: center; gap: 10px;">
-              <span style="color: #20c997; font-weight: bold; background: rgba(32, 201, 151, 0.1); padding: 4px 8px; border-radius: 4px;">🕒 ${r.start_time}</span>
-              <button onclick="deleteReminder(${r.id})" style="background: none; border: none; color: #ef4444; font-size: 1.2rem; cursor: pointer; padding: 0 5px;" title="Delete Reminder">✕</button>
-            </div>
-          </div>
-        `).join('') : '<p style="color: #888;">No reminders set yet.</p>'}
-      `;
-    } catch (err) {
-      console.error(err);
-    }
-  }
-
-  window.onload = () => {
-    loadItems();
-    loadSavedReminders();
-  };
-</script>
-
-
+    window.onload = loadItems;
+  </script>
 </body>
 </html>
