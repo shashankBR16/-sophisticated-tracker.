@@ -13,7 +13,7 @@
     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
       <h2>Reminders Center 🔔</h2>
       <div>
-        <button onclick="testEmail()" style="background: #20c997; color: #000; padding: 8px 15px; border: none; border-radius: 5px; cursor: pointer; font-weight: bold; margin-right: 10px;">Test Email Connection</button>
+        <button onclick="testEmail()" style="background: #20c997; color: #000; padding: 8px 15px; border: none; border-radius: 5px; cursor: pointer; font-weight: bold; margin-right: 10px;">Test Email</button>
         <a href="dashboard.html" style="color: #4dabf7; text-decoration: none;">Back to Dashboard</a>
       </div>
     </div>
@@ -34,22 +34,30 @@
         <option value="">Loading...</option>
       </select>
 
-      <label style="color: #a3a3a3; font-size: 14px; display: block; margin-bottom: 5px;">Start Time <span style="color:#888; font-size:12px;">(Use 24-hour format for PM, e.g., 21:00 for 9:00 PM)</span></label>
-      <input type="time" id="start-time" required style="width: 100%; padding: 10px; margin-bottom: 15px; border-radius: 5px; background: #1a1a2e; color: white; border: 1px solid #333; color-scheme: dark;">
+      <!-- CUSTOM 12-HOUR TIME SELECTOR -->
+      <label style="color: #a3a3a3; font-size: 14px; display: block; margin-bottom: 5px;">Start Time</label>
+      <div style="display: flex; gap: 10px; margin-bottom: 20px; align-items: center;">
+        <input type="number" id="start-hour" placeholder="HH" min="1" max="12" style="flex: 1; padding: 10px; border-radius: 5px; background: #1a1a2e; color: white; border: 1px solid #333; color-scheme: dark;">
+        <span style="color: white; font-weight: bold;">:</span>
+        <input type="number" id="start-minute" placeholder="MM" min="0" max="59" style="flex: 1; padding: 10px; border-radius: 5px; background: #1a1a2e; color: white; border: 1px solid #333; color-scheme: dark;">
+        <select id="start-ampm" style="flex: 1; padding: 10px; border-radius: 5px; background: #1a1a2e; color: white; border: 1px solid #333;">
+          <option value="AM">AM</option>
+          <option value="PM">PM</option>
+        </select>
+      </div>
 
-      <!-- NEW: Repetitive Reminders -->
-      <label style="color: #a3a3a3; font-size: 14px; display: block; margin-bottom: 5px;">Repeat (Optional)</label>
-      <select id="repeat-interval" style="width: 100%; padding: 10px; margin-bottom: 20px; border-radius: 5px; background: #1a1a2e; color: white; border: 1px solid #333;">
-        <option value="0">Do not repeat (One-time)</option>
-        <option value="1">Every 1 Hour (generates 4 reminders)</option>
-        <option value="2">Every 2 Hours (generates 4 reminders)</option>
-        <option value="3">Every 3 Hours (generates 4 reminders)</option>
-      </select>
+      <!-- CUSTOM REPEAT ENGINE -->
+      <label style="color: #a3a3a3; font-size: 14px; display: block; margin-bottom: 5px;">Repeat Setup (Optional)</label>
+      <div style="display: flex; gap: 10px; margin-bottom: 20px;">
+        <input type="number" id="repeat-hours" placeholder="Hours gap" min="0" style="flex: 1; padding: 10px; border-radius: 5px; background: #1a1a2e; color: white; border: 1px solid #333; color-scheme: dark;">
+        <input type="number" id="repeat-minutes" placeholder="Minutes gap" min="0" style="flex: 1; padding: 10px; border-radius: 5px; background: #1a1a2e; color: white; border: 1px solid #333; color-scheme: dark;">
+        <input type="number" id="repeat-count" placeholder="Total extra times?" min="0" style="flex: 1; padding: 10px; border-radius: 5px; background: #1a1a2e; color: white; border: 1px solid #333; color-scheme: dark;">
+      </div>
 
       <button onclick="saveReminder()" style="width: 100%; padding: 12px; background: #4dabf7; color: #000; border: none; border-radius: 5px; font-weight: bold; cursor: pointer;">Save Reminder(s)</button>
     </div>
 
-    <!-- BOX FOR SAVED REMINDERS -->
+    <!-- SAVED REMINDERS -->
     <div id="saved-reminders-box" style="margin-top: 30px; background: #11111f; padding: 20px; border-radius: 8px; border: 1px solid #333;">
       <h3 style="color: #4dabf7; margin-top: 0; border-bottom: 1px solid #333; padding-bottom: 8px;">Scheduled Reminders</h3>
       <div id="reminders-list">Loading...</div>
@@ -59,7 +67,7 @@
   <script>
     let allHabits = [];
 
-    // Helper Function: Converts 24h DB time (21:53) to 12h AM/PM (09:53 PM)
+    // Formats DB 24h back to 12h AM/PM for the UI
     function formatAMPM(timeStr) {
       if (!timeStr) return '';
       let [hours, minutes] = timeStr.split(':');
@@ -106,43 +114,68 @@
       }
     }
 
-    // NEW: Handles single and repetitive saving
     async function saveReminder() {
       const selectCategory = document.getElementById('reminder-type');
       const item_type = selectCategory.options[selectCategory.selectedIndex].text;
       const item_id = document.getElementById('item-dropdown').value;
-      const start_time = document.getElementById('start-time').value;
-      const repeat_interval = parseInt(document.getElementById('repeat-interval').value);
+      
+      // Grab the custom time inputs
+      const hhInput = parseInt(document.getElementById('start-hour').value);
+      const mmInput = parseInt(document.getElementById('start-minute').value);
+      const ampm = document.getElementById('start-ampm').value;
 
-      if (!item_id || !start_time) return alert("Please select an item and time.");
+      if (!item_id || isNaN(hhInput) || isNaN(mmInput) || hhInput < 1 || hhInput > 12 || mmInput < 0 || mmInput > 59) {
+        return alert("Please select an item and enter a valid time (HH: 1-12, MM: 0-59).");
+      }
+
+      // Convert 12h AM/PM to 24h for the Database
+      let hour24 = hhInput;
+      if (ampm === 'PM' && hhInput !== 12) hour24 += 12;
+      if (ampm === 'AM' && hhInput === 12) hour24 = 0;
+      
+      const baseTime24 = String(hour24).padStart(2, '0') + ':' + String(mmInput).padStart(2, '0');
+
+      // Grab custom repeat inputs
+      const repHours = parseInt(document.getElementById('repeat-hours').value) || 0;
+      const repMins = parseInt(document.getElementById('repeat-minutes').value) || 0;
+      const repCount = parseInt(document.getElementById('repeat-count').value) || 0;
 
       try {
-        // Calculate the times we need to save based on the interval selected
-        let timesToSave = [start_time];
+        let timesToSave = [baseTime24];
         
-        if (repeat_interval > 0) {
-          let [hours, minutes] = start_time.split(':');
-          let currentHour = parseInt(hours);
+        // Generate repeating times based on specific minutes and hours gaps
+        if ((repHours > 0 || repMins > 0) && repCount > 0) {
+          let currentTotalMins = (hour24 * 60) + mmInput;
+          const gapMins = (repHours * 60) + repMins;
           
-          for (let i = 1; i <= 4; i++) { // Generates the original time + 4 repeating future times
-            currentHour += repeat_interval;
-            if (currentHour >= 24) break; // Stops calculating if it rolls over past midnight
-            let nextTime = String(currentHour).padStart(2, '0') + ':' + minutes;
-            timesToSave.push(nextTime);
+          for (let i = 0; i < repCount; i++) {
+            currentTotalMins += gapMins;
+            if (currentTotalMins >= 24 * 60) break; // Stops if it bleeds into the next day
+            
+            const nextH = Math.floor(currentTotalMins / 60);
+            const nextM = currentTotalMins % 60;
+            timesToSave.push(String(nextH).padStart(2, '0') + ':' + String(nextM).padStart(2, '0'));
           }
         }
 
-        // Loop through all calculated times and save them instantly
         for (const time of timesToSave) {
           const res = await fetch('/api/reminders', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${localStorage.getItem('token')}` },
             body: JSON.stringify({ item_type, item_id, start_time: time })
           });
-          if (!res.ok) throw new Error('Failed to save a reminder');
+          if (!res.ok) throw new Error('Failed to save');
         }
 
         alert(`Saved ${timesToSave.length} reminder(s) successfully!`);
+        
+        // Clear inputs after save
+        document.getElementById('start-hour').value = '';
+        document.getElementById('start-minute').value = '';
+        document.getElementById('repeat-hours').value = '';
+        document.getElementById('repeat-minutes').value = '';
+        document.getElementById('repeat-count').value = '';
+        
         loadSavedReminders(); 
       } catch (err) { 
         console.error(err); 
@@ -173,7 +206,6 @@
             <div style="background: #1a1a2e; padding: 12px; border-radius: 6px; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center; border: 1px solid #222;">
               <span><strong style="color: #a78bfa;">${r.title || 'Item'}</strong> <span style="color: #888; font-size: 0.85rem;">(${r.item_type})</span></span>
               <div style="display: flex; align-items: center; gap: 10px;">
-                <!-- Displays the time in beautiful 12-hour AM/PM format -->
                 <span style="color: #20c997; font-weight: bold; background: rgba(32, 201, 151, 0.1); padding: 4px 8px; border-radius: 4px;">🕒 ${formatAMPM(r.start_time)}</span>
                 <button onclick="deleteReminder(${r.id})" style="background: none; border: none; color: #ef4444; font-size: 1.2rem; cursor: pointer; padding: 0 5px;" title="Delete">✕</button>
               </div>
