@@ -146,23 +146,26 @@
     }
   }
 
-  // 5. Delete Reminder Function
-  window.deleteReminder = async function(id) {
-    if (!confirm('Are you sure you want to delete this reminder?')) return;
-    try {
-      const res = await fetch(`/api/reminders/${id}`, {
-        method: 'DELETE',
-        headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
-      });
-      if (res.ok) {
-        loadSavedReminders(); // Instantly refresh the list
-      } else {
-        alert('Failed to delete reminder.');
+      // Instantly deletes a reminder with detailed error reporting
+    window.deleteReminder = async function(id) {
+      if (!confirm('Are you sure you want to delete this reminder?')) return;
+      try {
+        const res = await fetch(`/api/reminders/${id}`, {
+          method: 'DELETE',
+          headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
+        });
+        
+        if (res.ok) {
+          loadSavedReminders(); // Refreshes the display box instantly
+        } else {
+          const data = await res.json();
+          alert('Failed to delete: ' + (data.error || 'Unknown server error'));
+        }
+      } catch (err) { 
+        console.error(err);
+        alert('Network error while trying to delete.');
       }
-    } catch (err) {
-      console.error(err);
-    }
-  };
+    };
 
   // 6. Fetch and display saved reminders with delete buttons
   async function loadSavedReminders() {

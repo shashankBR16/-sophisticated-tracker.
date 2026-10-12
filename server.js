@@ -225,6 +225,77 @@ app.delete('/api/admin/users/:id', authenticateToken, async (req, res) => {
   }
 });
 
+// --- REMINDERS DELETE ROUTE ---
+app.delete('/api/reminders/:id', authenticateToken, async (req, res) => {
+  try {
+    const [result] = await pool.query('DELETE FROM reminders WHERE id = ? AND user_id = ?', [req.params.id, req.user.id]);
+    if (result.affectedRows === 0) return res.status(404).json({ error: 'Reminder not found.' });
+    res.json({ message: 'Deleted successfully' });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// --- AUTOMATIC EMAIL ENGINE (Runs every 1 minute) ---
+setInterval(async () => {
+  try {
+    // 1. Get the current time in HH:MM format (Now uses Asia/Kolkata because of Render ENV)
+    const now = new Date();
+    const currentHours = String(now.getHours()).padStart(2, '0');
+    const currentMinutes = String(now.getMinutes()).padStart(2, '0');
+    const currentTime = `${currentHours}:${currentMinutes}`;
+
+    // 2. Find any reminders in the database that match this exact minute
+    const [reminders] = await pool.query(`
+      SELECT r.*, u.email, h.title 
+      FROM reminders r 
+      JOIN users u ON r.user_id = u.id 
+      LEFT JOIN habits h ON r.item_id = h.id 
+      WHERE r.start_time LIKE ?
+    `, [`${currentTime}%`]);
+
+    // 3. If we found matches, send the emails via Brevo!
+    if (reminders.length > 0) {
+      const https = require('https');
+      const apiKey = process.env.EMAIL_PASS;
+      const senderEmail = process.env.EMAIL_USER;
+
+      if (!apiKey || !senderEmail) return;
+
+      reminders.forEach(rem => {
+        const habitName = rem.title || rem.item_type;
+        const postData = JSON.stringify({
+          sender: { email: senderEmail },
+          to: [{ email: rem.email }],
+          subject: `🔔 Time for your habit: ${habitName}`,
+          textContent: `Hello! \n\nThis is your scheduled reminder for: ${habitName}.\n\nKeep up the great work in your Sophisticated Tracker!`
+        });
+
+        const options = {
+          hostname: 'api.brevo.com',
+          path: '/v3/smtp/email',
+          method: 'POST',
+          headers: {
+            'accept': 'application/json',
+            'api-key': apiKey,
+            'content-type': 'application/json',
+            'content-length': Buffer.byteLength(postData)
+          }
+        };
+
+        const request = https.request(options, (response) => {
+          response.on('data', () => {}); // Consume data to free memory
+        });
+        request.on('error', (err) => console.error('Cron Email Error:', err));
+        request.write(postData);
+        request.end();
+      });
+    }
+  } catch (err) {
+    console.error('Email Scheduler Error:', err.message);
+  }
+}, 60000); // 60000 milliseconds = 1 minute
+
 
 const PORT = process.env.PORT || 10000;
 app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
