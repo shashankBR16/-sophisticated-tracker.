@@ -136,53 +136,61 @@ app.post('/api/reminders', authenticateToken, async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-app.post('/api/reminders/test-email', authenticateToken, (req, res) => {
-  const https = require('https');
-  const postData = JSON.stringify({
-    sender: { email: process.env.EMAIL_USER },
-    to: [{ email: req.user.email }],
-    subject: 'Sophisticated Tracker - Test Email',
-    textContent: 'Hello! Your Brevo API email reminder service is working perfectly.'
-  });
-
-  const options = {
-    hostname: 'api.brevo.com',
-    path: '/v3/smtp/email',
-    method: 'POST',
-    headers: {
-      'accept': 'application/json',
-      'api-key': process.env.EMAIL_PASS,
-      'content-type': 'application/json',
-      'content-length': Buffer.byteLength(postData)
-    }
-  };
-
-  const request = https.request(options, (response) => {
-    let data = '';
-    response.on('data', (chunk) => { data += chunk; });
-    response.on('end', () => {
-      if (response.statusCode >= 200 && response.statusCode < 300) {
-        res.json({ message: 'Test email sent successfully via API!' });
-      } else {
-        res.status(400).json({ error: data });
-      }
-    });
-  });
-
-  request.on('error', (err) => {
-    res.status(500).json({ error: 'Server network error: ' + err.message });
-  });
-
-  request.write(postData);
-  request.end();
-});
-
-app.delete('/api/reminders/:id', authenticateToken, async (req, res) => {
+// --- CRASH-PROOF EMAIL TEST ROUTE ---
+app.post('/api/reminders/test-email', authenticateToken, async (req, res) => {
   try {
-    await pool.query('DELETE FROM reminders WHERE id = ? AND user_id = ?', [req.params.id, req.user.id]);
-    res.json({ message: 'Reminder deleted successfully' });
+    const apiKey = process.env.EMAIL_PASS;
+    const senderEmail = process.env.EMAIL_USER;
+    
+    // Prevent server crash if env variables are missing in Render
+    if (!apiKey || !senderEmail) {
+      return res.status(400).json({ error: 'MISSING KEYS: You must add EMAIL_PASS (Brevo API Key) and EMAIL_USER (Your Email) in Render.' });
+    }
+
+    // Fallback if the logged-in user token is older and lacks an email address
+    const targetEmail = req.user.email || senderEmail; 
+
+    const https = require('https');
+    const postData = JSON.stringify({
+      sender: { email: senderEmail },
+      to: [{ email: targetEmail }],
+      subject: 'Sophisticated Tracker - Test Email',
+      textContent: 'Hello! Your Brevo API email reminder service is working perfectly.'
+    });
+
+    const options = {
+      hostname: 'api.brevo.com',
+      path: '/v3/smtp/email',
+      method: 'POST',
+      headers: {
+        'accept': 'application/json',
+        'api-key': apiKey,
+        'content-type': 'application/json',
+        'content-length': Buffer.byteLength(postData)
+      }
+    };
+
+    const request = https.request(options, (response) => {
+      let data = '';
+      response.on('data', (chunk) => { data += chunk; });
+      response.on('end', () => {
+        if (response.statusCode >= 200 && response.statusCode < 300) {
+          res.json({ message: 'Test email sent successfully via Brevo API!' });
+        } else {
+          // Send Brevo's exact error safely to the frontend
+          res.status(400).json({ error: 'Brevo rejected the email: ' + data });
+        }
+      });
+    });
+
+    request.on('error', (err) => {
+      res.status(500).json({ error: 'Network error reaching Brevo: ' + err.message });
+    });
+
+    request.write(postData);
+    request.end();
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: 'Server exception: ' + err.message });
   }
 });
 
