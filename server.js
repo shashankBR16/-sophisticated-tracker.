@@ -35,15 +35,101 @@ const authenticateToken = (req, res, next) => {
 };
 
 // --- AUTH ROUTES ---
+// Stores pending verifications temporarily in memory
+const pendingVerifications = new Map();
+
 app.post('/api/auth/register', async (req, res) => {
   try {
     const { username, email, password } = req.body;
-    const hashedPassword = await bcrypt.hash(password, 10);
-    // Auto-assign 'admin' role if the username is shashank
-    const role = username.toLowerCase() === 'shashank' ? 'admin' : 'user';
-    await pool.query('INSERT INTO users (username, email, password, role, is_verified) VALUES (?, ?, ?, ?, ?)', [username, email, hashedPassword, role, true]);
-    res.status(201).json({ message: 'User registered' });
-  } catch (err) { res.status(500).json({ error: err.message }); }
+
+    // 1. Check for existing users
+    const [existing] = await pool.query('SELECT * FROM users WHERE username = ? OR email = ?', [username, email]);
+    if (existing.length > 0) return res.status(400).json({ error: 'Username or email already exists.' });
+
+    // 2. Generate a 6-digit PIN
+    const pin = Math.floor(100000 + Math.random() * 900000).toString();
+    pendingVerifications.set(email, { username, email, password, pin });
+
+    // 3. Send PIN via Brevo
+    const https = require('https');
+    const apiKey = process.env.EMAIL_PASS;
+    const senderEmail = process.env.EMAIL_USER;
+
+    if (!apiKey || !senderEmail) return res.status(500).json({ error: 'Server email keys missing in Render.' });
+
+    const postData = JSON.stringify({
+      sender: { email: senderEmail, name: 'Sophisticated Tracker' },
+      to: [{ email: email }],
+      subject: 'Sophisticated Tracker - Verification PIN',
+      textContent: `Hello ${username},\n\nYour 6-digit verification PIN is: ${pin}\n\nPlease enter this on the registration screen to activate your account.`
+    });
+
+    const options = {
+      hostname: 'api.brevo.com',
+      path: '/v3/smtp/email',
+      method: 'POST',
+      headers: {
+        'accept': 'application/json',
+        'api-key': apiKey,
+        'content-type': 'application/json',
+        'content-length': Buffer.byteLength(postData)
+      }
+    };
+
+    const request = https.request(options, (response) => {
+      let data = '';
+      response.on('data', (chunk) => { data += chunk; });
+      response.on('end', () => {
+        if (response.statusCode >= 200 && response.statusCode < 300) {
+          res.json({ message: 'Verification PIN sent to email' });
+        } else {
+          res.status(400).json({ error: 'Brevo rejected the email: ' + data });
+        }
+      });
+    });
+
+    request.on('error', (err) => {
+      res.status(500).json({ error: 'Network error reaching Brevo: ' + err.message });
+    });
+
+    request.write(postData);
+    request.end();
+
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/auth/verify', async (req, res) => {
+  try {
+    const { email, pin } = req.body;
+    const pendingUser = pendingVerifications.get(email);
+    
+    if (!pendingUser) return res.status(400).json({ error: 'No pending registration found. Please register again.' });
+    if (pendingUser.pin !== pin) return res.status(400).json({ error: 'Invalid PIN. Please try again.' });
+
+    // PIN matches! Hash password, assign role, and save to database
+    const hashedPassword = await bcrypt.hash(pendingUser.password, 10);
+    const role = pendingUser.username.toLowerCase() === 'shashank' ? 'admin' : 'user';
+    
+    const [result] = await pool.query('INSERT INTO users (username, email, password, role, is_verified) VALUES (?, ?, ?, ?, ?)', 
+      [pendingUser.username, pendingUser.email, hashedPassword, role, true]);
+    
+    pendingVerifications.delete(email);
+
+    // FIX: Generate the token and user object so auth.js can instantly log them in
+    const token = jwt.sign(
+      { id: result.insertId, username: pendingUser.username, email: pendingUser.email, role: role }, 
+      process.env.JWT_SECRET || 'fallback_secret', 
+      { expiresIn: '24h' }
+    );
+    
+    const userObj = { id: result.insertId, username: pendingUser.username, email: pendingUser.email, role: role };
+    
+    res.status(201).json({ message: 'Verified', token, user: userObj });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 app.post('/api/auth/login', async (req, res) => {
@@ -51,11 +137,15 @@ app.post('/api/auth/login', async (req, res) => {
     const { username, password } = req.body;
     const [rows] = await pool.query('SELECT * FROM users WHERE username = ? OR email = ?', [username, username]);
     if (rows.length === 0) return res.status(400).json({ error: 'User not found.' });
+    
     const validPassword = await bcrypt.compare(password, rows[0].password);
     if (!validPassword) return res.status(400).json({ error: 'Invalid password.' });
+    
     const token = jwt.sign({ id: rows[0].id, username: rows[0].username, email: rows[0].email, role: rows[0].role }, process.env.JWT_SECRET || 'fallback_secret', { expiresIn: '24h' });
     res.json({ token, user: { id: rows[0].id, username: rows[0].username, email: rows[0].email, role: rows[0].role } });
-  } catch (err) { res.status(500).json({ error: err.message }); }
+  } catch (err) { 
+    res.status(500).json({ error: err.message }); 
+  }
 });
 
 // --- HABITS ROUTES & LOGS ---
