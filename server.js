@@ -177,6 +177,16 @@ app.post('/api/reminders/test-email', authenticateToken, (req, res) => {
   request.end();
 });
 
+app.delete('/api/reminders/:id', authenticateToken, async (req, res) => {
+  try {
+    await pool.query('DELETE FROM reminders WHERE id = ? AND user_id = ?', [req.params.id, req.user.id]);
+    res.json({ message: 'Reminder deleted successfully' });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+
 // --- ADMIN ROUTES ---
 app.get('/api/admin/users', authenticateToken, async (req, res) => {
   // Double-check security on the backend

@@ -64,7 +64,7 @@
     }
   }
 
-  // 2. Filter items based on Category dropdown selection (Habit, Task, Health Metric)
+  // 2. Filter items based on Category
   function filterDropdownItems() {
     const category = document.getElementById('reminder-type').value;
     const dropdown = document.getElementById('item-dropdown');
@@ -72,13 +72,10 @@
     let filtered = allHabits;
     
     if (category === 'task') {
-      // Matches boolean tasks from dashboard
       filtered = allHabits.filter(h => h.type === 'boolean' || h.target === null);
     } else if (category === 'health') {
-      // Matches number health metrics from dashboard
       filtered = allHabits.filter(h => h.type === 'number' || h.target > 0);
     }
-    // If category is 'habit', it shows all habits combined
 
     if (filtered.length > 0) {
       dropdown.innerHTML = '<option value="">-- Choose Item --</option>';
@@ -93,10 +90,9 @@
     }
   }
 
-  // Hook category change to the filter function
   document.getElementById('reminder-type').addEventListener('change', filterDropdownItems);
 
-  // 3. Save the reminder and mount it to the display list below
+  // 3. Save the reminder
   async function saveReminder() {
     const categorySelect = document.getElementById('reminder-type');
     const item_type = categorySelect.options[categorySelect.selectedIndex].text;
@@ -130,7 +126,7 @@
     }
   }
 
-  // 4. Test Email Connection (Fixed route endpoint)
+  // 4. Test Email Connection
   async function testEmail() {
     try {
       const res = await fetch('/api/reminders/test-email', {
@@ -150,7 +146,25 @@
     }
   }
 
-  // 5. Fetch and display saved reminders in a box below
+  // 5. Delete Reminder Function
+  window.deleteReminder = async function(id) {
+    if (!confirm('Are you sure you want to delete this reminder?')) return;
+    try {
+      const res = await fetch(`/api/reminders/${id}`, {
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
+      });
+      if (res.ok) {
+        loadSavedReminders(); // Instantly refresh the list
+      } else {
+        alert('Failed to delete reminder.');
+      }
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  // 6. Fetch and display saved reminders with delete buttons
   async function loadSavedReminders() {
     try {
       const res = await fetch('/api/reminders', {
@@ -168,8 +182,6 @@
         container.style.padding = '20px';
         container.style.borderRadius = '8px';
         container.style.border = '1px solid #333';
-        
-        // Appends the box right below the main card
         document.querySelector('div[style*="max-width: 800px"]').appendChild(container);
       }
 
@@ -178,7 +190,10 @@
         ${reminders.length > 0 ? reminders.map(r => `
           <div style="background: #1a1a2e; padding: 12px; border-radius: 6px; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center; border: 1px solid #222;">
             <span><strong style="color: #a78bfa;">${r.title || 'Item'}</strong> <span style="color: #888; font-size: 0.85rem;">(${r.item_type})</span></span>
-            <span style="color: #20c997; font-weight: bold; background: rgba(32, 201, 151, 0.1); padding: 4px 8px; border-radius: 4px;">🕒 ${r.start_time}</span>
+            <div style="display: flex; align-items: center; gap: 10px;">
+              <span style="color: #20c997; font-weight: bold; background: rgba(32, 201, 151, 0.1); padding: 4px 8px; border-radius: 4px;">🕒 ${r.start_time}</span>
+              <button onclick="deleteReminder(${r.id})" style="background: none; border: none; color: #ef4444; font-size: 1.2rem; cursor: pointer; padding: 0 5px;" title="Delete Reminder">✕</button>
+            </div>
           </div>
         `).join('') : '<p style="color: #888;">No reminders set yet.</p>'}
       `;
@@ -187,12 +202,12 @@
     }
   }
 
-  // Load items and saved reminders on startup
   window.onload = () => {
     loadItems();
     loadSavedReminders();
   };
 </script>
+
 
 </body>
 </html>
