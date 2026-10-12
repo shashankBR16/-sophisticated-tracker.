@@ -58,13 +58,42 @@ app.post('/api/auth/login', async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-// --- HABITS ROUTES ---
+// --- HABITS ROUTES & LOGS ---
 app.get('/api/habits', authenticateToken, async (req, res) => {
   try {
-    // If admin passes a userId in the URL, use that. Otherwise use their own ID.
     const targetId = (req.query.userId && req.user.role === 'admin') ? req.query.userId : req.user.id;
-    const [rows] = await pool.query('SELECT * FROM habits WHERE user_id = ?', [targetId]);
+    
+    // This fetches the habits AND today's saved progress from habit_logs
+    const [rows] = await pool.query(`
+      SELECT h.*, COALESCE(l.quantity, 0) as today_quantity 
+      FROM habits h 
+      LEFT JOIN habit_logs l ON h.id = l.habit_id AND l.completed_date = CURDATE() 
+      WHERE h.user_id = ?
+    `, [targetId]);
+    
     res.json(rows);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.post('/api/habit_logs', authenticateToken, async (req, res) => {
+  try {
+    const { habit_id, quantity, userId } = req.body;
+    const targetId = (userId && req.user.role === 'admin') ? userId : req.user.id;
+
+    // Check if a log already exists for today
+    const [existing] = await pool.query(
+      'SELECT id FROM habit_logs WHERE habit_id = ? AND user_id = ? AND completed_date = CURDATE()',
+      [habit_id, targetId]
+    );
+
+    if (existing.length > 0) {
+      // Update existing progress
+      await pool.query('UPDATE habit_logs SET quantity = ? WHERE id = ?', [quantity, existing[0].id]);
+    } else {
+      // Create new progress entry for today
+      await pool.query('INSERT INTO habit_logs (habit_id, user_id, completed_date, quantity) VALUES (?, ?, CURDATE(), ?)', [habit_id, targetId, quantity]);
+    }
+    res.json({ message: 'Progress saved successfully' });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
