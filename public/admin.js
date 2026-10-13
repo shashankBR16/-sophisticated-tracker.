@@ -1,5 +1,5 @@
 document.addEventListener('DOMContentLoaded', () => {
-  // 1. INJECT RESPONSIVE CSS CAPABILITIES
+  // 1. BULLETPROOF CSS FOR MOBILE RESPONSIVENESS
   if (!document.getElementById('adminResponsiveStyles')) {
     const style = document.createElement('style');
     style.id = 'adminResponsiveStyles';
@@ -10,16 +10,15 @@ document.addEventListener('DOMContentLoaded', () => {
         border: 1px solid #334155; border-radius: 8px; color: #f8fafc; font-size: 0.95rem; width: 100%; box-sizing: border-box; margin-bottom: 10px;
       }
       .admin-actions { display: flex; gap: 10px; justify-content: flex-end; }
-      .mobile-label { display: none; color: #94a3b8; font-weight: normal; min-width: 70px; }
-      
+      .mobile-label { display: none; color: #94a3b8; font-weight: bold; min-width: 80px; margin-right: 10px; }
+
       /* Mobile Optimization Trigger */
       @media (max-width: 768px) {
-        .admin-row { flex-direction: column; align-items: flex-start; gap: 8px; padding: 15px; }
+        .admin-row { flex-direction: column; align-items: flex-start; gap: 12px; padding: 20px; }
         .admin-col { width: 100% !important; flex: none !important; display: flex; align-items: center; word-break: break-word; }
-        .mobile-label { display: inline-block; margin-right: 10px; }
-        .admin-actions { width: 100%; justify-content: space-between !important; margin-top: 10px; }
-        .admin-actions button { flex: 1; padding: 10px; }
-        .desktop-headers { display: none !important; }
+        .mobile-label { display: inline-block; }
+        .admin-actions { width: 100%; justify-content: space-between !important; margin-top: 15px; }
+        .admin-actions button { flex: 1; padding: 12px; font-size: 1rem; }
       }
     `;
     document.head.appendChild(style);
@@ -56,13 +55,6 @@ async function loadUsers() {
     if (!res.ok) throw new Error('Failed to fetch users');
     const users = await res.json();
     
-    // BUG FIX: .reverse() forces it to grab the innermost header row instead of the outermost main container
-    const headersContainer = Array.from(document.querySelectorAll('div')).reverse().find(el => 
-        el.innerText && el.innerText.includes('Username') && el.innerText.includes('Email') && 
-        !el.id && !el.classList.contains('admin-row') && !el.classList.contains('admin-container')
-    );
-    if (headersContainer) headersContainer.classList.add('desktop-headers');
-
     let container = document.getElementById('adminUsersList');
     if (!container) {
       container = document.createElement('div');
@@ -70,7 +62,8 @@ async function loadUsers() {
       container.className = 'admin-container';
       container.style.marginTop = '20px';
       
-      const card = document.querySelector('div[style*="max-width"]') || document.body;
+      // Safely mounts to the main background card without scanning for text
+      const card = document.querySelector('div[style*="max-width"]') || document.querySelector('.card') || document.body;
       card.appendChild(container);
     }
 
