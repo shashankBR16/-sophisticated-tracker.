@@ -42,7 +42,21 @@
       <form id="loginForm" style="display: flex; flex-direction: column; gap: 1.2rem;">
         <!-- Allows Username OR Email -->
         <input type="text" id="loginId" placeholder="Email Address or Username" required />
-        <input type="password" id="loginPassword" placeholder="Password" required />
+        <div style="position: relative; width: 100%; margin-bottom: 15px;">
+  <input 
+    type="password" 
+    id="loginPassword" 
+    placeholder="Password" 
+    required 
+    style="width: 100%; padding: 12px 42px 12px 14px; border-radius: 8px; border: 1px solid #334155; background: #0f172a; color: #fff; box-sizing: border-box; font-size: 1rem;"
+  >
+  <button 
+    type="button" 
+    onclick="togglePasswordVisibility('loginPassword', this)" 
+    style="position: absolute; right: 12px; top: 50%; transform: translateY(-50%); background: none; border: none; cursor: pointer; color: #94a3b8; font-size: 1.1rem; padding: 0; line-height: 1;"
+  >👁️</button>
+</div>
+
         <button type="submit" style="background: #38bdf8; color: #0f172a; border: none;">Sign In</button>
       </form>
       
